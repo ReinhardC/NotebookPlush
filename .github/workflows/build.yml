@@ -28,7 +28,7 @@ jobs:
           packages: platform-tools
       - uses: gradle/actions/setup-gradle@v6
       - name: Install Android build SDK
-        run: sdkmanager 'platforms;android-37' 'build-tools;36.0.0'
+        run: sdkmanager 'platforms;android-37.0' 'build-tools;36.0.0'
       - name: Build, unit tests, and lint
         run: bash ./gradlew :androidApp:assembleDebug :androidApp:testQaUnitTest :androidApp:lintDebug
       - name: Publisher tests (fake SFTP and HTTPS)
@@ -55,7 +55,7 @@ jobs:
           packages: platform-tools
       - uses: gradle/actions/setup-gradle@v6
       - name: Install Android build SDK
-        run: sdkmanager 'platforms;android-37' 'build-tools;36.0.0'
+        run: sdkmanager 'platforms;android-37.0' 'build-tools;36.0.0'
       - name: Restore NotebookPlush release key
         env:
           NOTEBOOKPLUSH_KEYSTORE_BASE64: ${{ secrets.NOTEBOOKPLUSH_KEYSTORE_BASE64 }}

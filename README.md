@@ -32,7 +32,7 @@ The app and publisher share `tools/update-host.json`. GitHub CI builds, signs, a
 2. Let Gradle sync. Use JDK 17 or newer for Gradle (this machine has JDK 21).
 3. Select the `androidApp` module and an Android emulator or connected device, then Run.
 
-The app supports Android 7.0 (API 24) and newer, and compiles and targets API 37. Install Android SDK platform 37 and build tools 36.0.0 if needed. `local.properties` points to this machine's SDK and is ignored by Git; adjust it on another machine.
+The app supports Android 7.0 (API 24) and newer, and compiles and targets API 37. Install Android SDK platform 37 (`platforms;android-37.0`) and build tools 36.0.0 if needed. `local.properties` points to this machine's SDK and is ignored by Git; adjust it on another machine.
 
 From PowerShell in this folder:
 
