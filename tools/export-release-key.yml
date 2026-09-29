@@ -1,0 +1,39 @@
+name: Encrypt the authorized local signing-key import
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  encrypt:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Encrypt signing material for this Windows recipient
+        env:
+          RECIPIENT_CERTIFICATE: RECIPIENT_PLACEHOLDER
+          SIGNING_STORE: ${{ secrets.NOTEBOOKPLUSH_KEYSTORE_BASE64 }}
+          SIGNING_PASSWORD: ${{ secrets.NOTEBOOKPLUSH_KEYSTORE_PASSWORD }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.NOTEBOOKPLUSH_KEY_PASSWORD }}
+          SIGNING_ALIAS: ${{ vars.NOTEBOOKPLUSH_KEY_ALIAS || 'notebookplush' }}
+        run: |
+          set -euo pipefail
+          umask 077
+          python3 - <<'PY'
+          import base64, json, os
+          from pathlib import Path
+          if not os.environ['SIGNING_STORE'] or not os.environ['SIGNING_PASSWORD']:
+              raise SystemExit('Release signing secrets are not configured')
+          Path('recipient.pem').write_bytes(base64.b64decode(os.environ['RECIPIENT_CERTIFICATE']))
+          Path('signing.json').write_text(json.dumps({
+              'schema': 1, 'keystore': os.environ['SIGNING_STORE'],
+              'storePassword': os.environ['SIGNING_PASSWORD'],
+              'keyPassword': os.environ['SIGNING_KEY_PASSWORD'] or os.environ['SIGNING_PASSWORD'],
+              'alias': os.environ['SIGNING_ALIAS']
+          }), encoding='utf-8')
+          PY
+          openssl cms -encrypt -aes-256-cbc -binary -in signing.json -out encrypted-key.cms -outform PEM recipient.pem
+          rm signing.json recipient.pem
+      - uses: actions/upload-artifact@v7
+        with:
+          name: encrypted-release-key
+          path: encrypted-key.cms
+          retention-days: 1

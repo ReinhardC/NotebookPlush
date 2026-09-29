@@ -7,5 +7,6 @@ local.properties
 .DS_Store
 *.jks
 *.keystore
+*.dpapi
 .venv/
 __pycache__/

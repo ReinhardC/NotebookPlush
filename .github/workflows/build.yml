@@ -33,6 +33,14 @@ jobs:
         run: bash ./gradlew :androidApp:assembleDebug :androidApp:testQaUnitTest :androidApp:lintDebug
       - name: Publisher tests (fake SFTP and HTTPS)
         run: python3 tools/test-publish-update.py
+      - name: Parse local PowerShell release helpers
+        shell: pwsh
+        run: |
+          foreach ($script in @('setup-release-key.ps1', 'build-release.ps1', 'deploy-release.ps1', 'tools/release-common.ps1', 'tools/test-release-scripts.ps1')) {
+            $tokens = $null; $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD $script), [ref]$tokens, [ref]$errors)
+            if ($errors.Count) { throw "PowerShell parse errors in $script : $errors" }
+          }
       - name: Upload reports
         if: failure()
         uses: actions/upload-artifact@v7

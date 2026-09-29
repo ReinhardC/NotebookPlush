@@ -52,6 +52,28 @@ The APK is generated at `androidApp/build/outputs/apk/debug/androidApp-debug.apk
 
 Device tests install a separate `com.notebookplush.testing` app, preserving the normal app and its drafts.
 
+## Build a signed release locally
+
+The PowerShell helpers use the same release signing key as GitHub CI. Run the setup command once on each Windows account, with GitHub CLI installed and repository write access:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\setup-release-key.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build-release.ps1
+```
+
+The signed APK is `androidApp/build/outputs/apk/release/androidApp-release.apk`. The build helper selects JDK 17/21, builds the release, and verifies that its signing certificate matches the published CI APK. It does not install or publish anything. Signing material stays outside the checkout in a Windows-account-encrypted store; temporary keystores are removed after each build.
+
+The device helper follows Easynews's model selection:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\deploy-release.ps1 -ListModels
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\deploy-release.ps1 -Model SM-X906B -SkipBuild -DryRun
+# Build and install on the selected device:
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\deploy-release.ps1 -Model SM-X906B
+```
+
+`-SkipBuild` uses the existing verified APK; `-DryRun` checks it and the selected devices without building or installing. Deployment only updates compatible installations and never uninstalls an app. An installation signed with a debug key is refused, preserving its drafts. See [local signing details](docs/updates.md#local-signed-builds).
+
 ## Code
 
 - `shared/src/commonMain/kotlin/com/notebookplush/App.kt`: shared Compose UI. Start editing here.

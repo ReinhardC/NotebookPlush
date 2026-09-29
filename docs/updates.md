@@ -25,11 +25,32 @@ Every distributed release must use the same stable key. CI currently reuses Easy
 
 Without a configured key, Gradle produces an unsigned release rather than silently signing with the debug key. The publisher verifies APK signatures with Android's `apksigner` and refuses standard debug certificates. The app verifies that the download has the exact installed signing certificates as well.
 
-The existing development installation uses a debug key. A stable release installation must be provisioned separately, preserving/exporting wanted drafts before changing its signing identity. The updater refuses a different signer and never uninstalls the current app.
+An installation using a debug key cannot receive stable release updates. Preserve/export wanted drafts before changing its signing identity. The updater and local deployment helper refuse a different signer and never uninstall the current app.
 
 Both local and future CI builds derive `versionCode` from UTC seconds since 2020-01-01. Keep build machine clocks synchronized and build releases sequentially. `versionName` is `0.2.<versionCode>`. The publisher reads the actual APK output metadata rather than guessing a version.
 
-## Optional local release tools
+## Local signed builds
+
+`setup-release-key.ps1` imports the CI signing key once for the current Windows account. It requires GitHub CLI and repository write access, using an existing `gh` login or Git Credential Manager login. Run it with `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\setup-release-key.ps1`.
+
+The import creates a temporary remote branch and dispatches an isolated workflow based on `tools/export-release-key.yml`. The runner encrypts the signing material for a temporary, non-exportable certificate on this PC. Only the encrypted CMS envelope is uploaded as an artifact. After import, the helper removes the artifact, temporary branch, and recipient certificate/private key. The default CI workflow remains unchanged. Hosting credentials are not imported.
+
+The local copy is stored at `%LOCALAPPDATA%\NotebookPlush\signing\release-key.dpapi`, protected by Windows DPAPI for the current account. Its directory grants access to that account and SYSTEM. This store is specific to the Windows account and PC; keep a separate stable-key backup. The script also pins the signing certificate SHA-256 from the published GitHub release.
+
+```powershell
+# Build and verify; no installation or publication:
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build-release.ps1
+# Verify an existing signed APK:
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build-release.ps1 -SkipBuild
+# Check PowerShell parsing, encryption interoperability, and JDK selection:
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\test-release-scripts.ps1
+```
+
+`build-release.ps1` selects JDK 17/21, rejects overlapping Gradle builds, materializes the keystore in a private temporary directory, and invokes `assembleRelease` with configuration caching disabled so signing passwords are not serialized into the workspace cache. It restores process environment variables and removes temporary signing files even when the build fails. The resulting APK must have the same certificate as the published CI release.
+
+`deploy-release.ps1` adds Easynews-style `-ListModels`, `-Model`, `-SkipBuild`, and `-DryRun` switches. The default model is `SM_X906B`; hyphens and underscores are interchangeable. It combines USB/wireless connections to the same device and rejects missing or ambiguous targets. Before installation, every selected device must have a compatible signing certificate and an older version, or no existing NotebookPlush installation. A dry run uses the existing APK and performs these checks without installing. Installation uses `adb install -r`, verifies the installed version, and never uninstalls apps to bypass a signing mismatch.
+
+## Optional local publication
 
 Production releases use the GitHub workflow below. These commands are available for local troubleshooting or a manually authorized publication.
 
@@ -38,7 +59,7 @@ Use a committed release revision; the manifest records its full 40-character SHA
 Run from the project root in PowerShell after configuring signing and hosting:
 
 ```powershell
-.\gradlew.bat :androidApp:assembleRelease
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build-release.ps1
 if ($LASTEXITCODE -ne 0) { throw 'Release build failed' }
 $releaseApk = 'androidApp/build/outputs/apk/release/androidApp-release.apk'
 $releaseMetadata = 'androidApp/build/outputs/apk/release/output-metadata.json'
