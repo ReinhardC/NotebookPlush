@@ -1,0 +1,20 @@
+﻿{
+  "name": "Plush Light",
+  "colors": {
+    "editor.background": "#FFFDF8",
+    "editor.foreground": "#293B52",
+    "editor.lineHighlightBackground": "#F0F3F7",
+    "editorLineNumber.foreground": "#8493A6",
+    "editorLineNumber.activeForeground": "#416DA7",
+    "editor.selectionBackground": "#DCE8F8",
+    "editorCursor.foreground": "#416DA7"
+  },
+  "tokenColors": [
+    { "scope": "support.type.property-name.json", "settings": { "foreground": "#416DA7" } },
+    { "scope": "string.quoted.double.json", "settings": { "foreground": "#38764A" } },
+    { "scope": "constant.numeric.json", "settings": { "foreground": "#A35728" } },
+    { "scope": "constant.language.json", "settings": { "foreground": "#8357A6" } },
+    { "scope": "punctuation", "settings": { "foreground": "#61738A" } },
+    { "scope": "invalid", "settings": { "foreground": "#BD3C48" } }
+  ]
+}

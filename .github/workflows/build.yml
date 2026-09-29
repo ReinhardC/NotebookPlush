@@ -1,0 +1,96 @@
+name: Build and hosted updates
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: notebookplush-${{ github.ref }}
+  # Finish each publication before the next main build can replace its manifest.
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: platform-tools
+      - uses: gradle/actions/setup-gradle@v6
+      - name: Install Android build SDK
+        run: sdkmanager 'platforms;android-37' 'build-tools;36.0.0'
+      - name: Build, unit tests, and lint
+        run: bash ./gradlew :androidApp:assembleDebug :androidApp:testQaUnitTest :androidApp:lintDebug
+      - name: Publisher tests (fake SFTP and HTTPS)
+        run: python3 tools/test-publish-update.py
+      - name: Upload reports
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: check-reports
+          path: androidApp/build/reports
+
+  publish:
+    needs: check
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: platform-tools
+      - uses: gradle/actions/setup-gradle@v6
+      - name: Install Android build SDK
+        run: sdkmanager 'platforms;android-37' 'build-tools;36.0.0'
+      - name: Restore NotebookPlush release key
+        env:
+          NOTEBOOKPLUSH_KEYSTORE_BASE64: ${{ secrets.NOTEBOOKPLUSH_KEYSTORE_BASE64 }}
+        run: |
+          test -n "$NOTEBOOKPLUSH_KEYSTORE_BASE64" || { echo 'Missing release signing key'; exit 1; }
+          printf '%s' "$NOTEBOOKPLUSH_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/notebookplush-release.jks"
+      - name: Build signed release
+        env:
+          NOTEBOOKPLUSH_KEYSTORE_FILE: ${{ runner.temp }}/notebookplush-release.jks
+          NOTEBOOKPLUSH_KEYSTORE_PASSWORD: ${{ secrets.NOTEBOOKPLUSH_KEYSTORE_PASSWORD }}
+          NOTEBOOKPLUSH_KEY_PASSWORD: ${{ secrets.NOTEBOOKPLUSH_KEY_PASSWORD }}
+          NOTEBOOKPLUSH_KEY_ALIAS: ${{ vars.NOTEBOOKPLUSH_KEY_ALIAS || 'notebookplush' }}
+        run: |
+          test -n "$NOTEBOOKPLUSH_KEYSTORE_PASSWORD" || { echo 'Missing signing password'; exit 1; }
+          bash ./gradlew :androidApp:assembleRelease
+      - name: Prepare update manifest
+        run: |
+          python3 tools/build-update-manifest.py \
+            --metadata androidApp/build/outputs/apk/release/output-metadata.json \
+            --apk androidApp/build/outputs/apk/release/androidApp-release.apk \
+            --commit "$GITHUB_SHA" --output update.json
+      - name: Publish and verify hosted update
+        env:
+          NOTEBOOKPLUSH_UPDATE_USER: ${{ secrets.NOTEBOOKPLUSH_UPDATE_USER }}
+          NOTEBOOKPLUSH_UPDATE_PASSWORD: ${{ secrets.NOTEBOOKPLUSH_UPDATE_PASSWORD }}
+        run: |
+          python3 -m pip install -r tools/update-requirements.txt
+          python3 tools/publish-update.py \
+            --apk androidApp/build/outputs/apk/release/androidApp-release.apk \
+            --manifest update.json \
+            --apksigner "$ANDROID_HOME/build-tools/36.0.0/apksigner"
+      - name: Keep release artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: notebookplush-release
+          path: |
+            androidApp/build/outputs/apk/release/androidApp-release.apk
+            update.json

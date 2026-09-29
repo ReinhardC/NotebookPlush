@@ -1,0 +1,8 @@
+﻿{
+  "languages": [{
+    "grammar": "textmate/json.tmLanguage.json",
+    "name": "json",
+    "scopeName": "source.json",
+    "languageConfiguration": "textmate/json-configuration.json"
+  }]
+}

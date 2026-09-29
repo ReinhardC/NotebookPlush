@@ -1,0 +1,12 @@
+﻿Sora Editor 0.24.6
+Copyright (C) 2020-2026 Rosemoe
+License: LGPL 2.1 or later
+Unmodified library sources: https://github.com/Rosemoe/sora-editor/tree/0.24.6
+Artifacts: io.github.rosemoe:editor and io.github.rosemoe:language-textmate
+
+VS Code JSON TextMate grammar and language configuration
+Source: https://github.com/microsoft/vscode/tree/main/extensions/json
+The grammar records its source revision in json.tmLanguage.json.
+Copyright (c) Microsoft Corporation. MIT License.
+
+Full license texts are alongside this notice and in the project third-party directory.

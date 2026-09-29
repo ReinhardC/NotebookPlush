@@ -1,0 +1,20 @@
+﻿{
+  "name": "Plush Dark",
+  "colors": {
+    "editor.background": "#202B3A",
+    "editor.foreground": "#E8EEF8",
+    "editor.lineHighlightBackground": "#293749",
+    "editorLineNumber.foreground": "#8499B3",
+    "editorLineNumber.activeForeground": "#A8C8FF",
+    "editor.selectionBackground": "#3E5573",
+    "editorCursor.foreground": "#A8C8FF"
+  },
+  "tokenColors": [
+    { "scope": "support.type.property-name.json", "settings": { "foreground": "#A8C8FF" } },
+    { "scope": "string.quoted.double.json", "settings": { "foreground": "#A7D7AB" } },
+    { "scope": "constant.numeric.json", "settings": { "foreground": "#E9BC8C" } },
+    { "scope": "constant.language.json", "settings": { "foreground": "#D4B5F1" } },
+    { "scope": "punctuation", "settings": { "foreground": "#AEC0D7" } },
+    { "scope": "invalid", "settings": { "foreground": "#FFA8AF" } }
+  ]
+}
