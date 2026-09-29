@@ -18,13 +18,13 @@ The editor uses [Sora Editor](https://github.com/Rosemoe/sora-editor/tree/0.24.6
 
 Sora is Android-specific; additional platforms will need their own editor adapter, while the Compose app shell and workspace model can stay shared. Existing single-file drafts are migrated automatically. Undo history lasts for the current Activity; text and cursors also survive rotation and relaunch.
 
-The supplied blue plush notebook artwork sits oversized at the upper left, overlapping the page beneath the tabs. The translucent top and bottom bars, raised tabs, and accent line borrow Easynews's layout. The artwork is also used for the Android launcher icon, with adaptive icons on Android 8+ and density-specific icons for Android 7. The original PNG stays in the project root.
+The supplied blue plush notebook artwork sits at the upper-left corner at 80 dp, deliberately overlapping the text beneath the slim 52 dp tab strip. Text scrolls behind the half-transparent top and bottom bars; the raised tabs and accent line borrow Easynews's layout. The artwork is also used for the Android launcher icon, with adaptive icons on Android 8+ and density-specific icons for Android 7. The original PNG stays in the project root.
 
 ## Hosted updates
 
 Signed release builds check the NotebookPlush feed at `https://clausbilder.de/notebookplush/` once at startup, show a prompt only for newer builds, and support a seven-day Later reminder and an automatic-check toggle. The editor header has no update-check button; a manual entry point is planned for a future settings tab. Downloads are verified against their size, SHA-256, package, version, and the installed app's signing certificate before Android asks for installation confirmation.
 
-The app and publisher share `tools/update-host.json`. GitHub CI builds, signs, and publishes releases after checks pass on pushes to `main`, using signing and hosting secrets configured from Easynews. Uploads use Telekom's SFTP server `hosting.telekom.de`; downloads use the separate NotebookPlush directory on `clausbilder.de`. Verified releases are also downloadable from GitHub Releases. See [CI release and hosting setup](docs/updates.md). Debug/QA builds do not check automatically, and a release APK cannot update an installation signed with a different key.
+The app and publisher share `tools/update-host.json`. GitHub CI builds, signs, and publishes releases after checks pass on pushes to `main`, using signing and hosting secrets configured from Easynews. Local polish commits use `[skip ci]` to save CI minutes; those builds are tested and deployed with the local release scripts instead. Uploads use Telekom's SFTP server `hosting.telekom.de`; downloads use the separate NotebookPlush directory on `clausbilder.de`. Verified releases are also downloadable from GitHub Releases. See [CI release and hosting setup](docs/updates.md). Debug/QA builds do not check automatically, and a release APK cannot update an installation signed with a different key.
 
 ## Open and run
 

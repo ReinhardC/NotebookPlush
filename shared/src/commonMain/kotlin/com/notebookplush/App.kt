@@ -72,27 +72,26 @@ fun App(
         val muted = colors.onSurface.copy(alpha = .6f)
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(colors.background, colors.surface)))) {
             Box(Modifier.fillMaxSize().safeDrawingPadding().imePadding()) {
-                Column(Modifier.fillMaxSize()) {
-                    FileBar(workspace, onNew, onSelect, onClose)
-                    editor(Modifier.fillMaxWidth().weight(1f), dark)
-                    Row(
-                        Modifier.fillMaxWidth().height(46.dp)
-                            .background(colors.surface.copy(alpha = .35f))
-                            .padding(horizontal = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Tool(EditorIcons.Open, "Open file", onOpen)
-                        Tool(EditorIcons.Save, "Save as", onSaveAs)
-                        Spacer(Modifier.width(8.dp))
-                        Tool(EditorIcons.Undo, "Undo", onUndo, canUndo)
-                        Tool(EditorIcons.Redo, "Redo", onRedo, canRedo)
-                        Tool(EditorIcons.Wrap, "Word wrap", onWrapChanged, active = wordWrap)
-                        Spacer(Modifier.width(8.dp))
-                        Text(saveStatus, color = muted, fontSize = 11.sp, maxLines = 1,
-                            overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                        Spacer(Modifier.width(8.dp))
-                        Text(position, color = muted, fontSize = 11.sp)
-                    }
+                // Draw chrome over the full editor viewport so text scrolls beneath both bars.
+                editor(Modifier.fillMaxSize(), dark)
+                FileBar(workspace, onNew, onSelect, onClose)
+                Row(
+                    Modifier.align(Alignment.BottomStart).fillMaxWidth().height(46.dp)
+                        .background(colors.surface.copy(alpha = .5f))
+                        .padding(horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Tool(EditorIcons.Open, "Open file", onOpen)
+                    Tool(EditorIcons.Save, "Save as", onSaveAs)
+                    Spacer(Modifier.width(8.dp))
+                    Tool(EditorIcons.Undo, "Undo", onUndo, canUndo)
+                    Tool(EditorIcons.Redo, "Redo", onRedo, canRedo)
+                    Tool(EditorIcons.Wrap, "Word wrap", onWrapChanged, active = wordWrap)
+                    Spacer(Modifier.width(8.dp))
+                    Text(saveStatus, color = muted, fontSize = 11.sp, maxLines = 1,
+                        overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    Spacer(Modifier.width(8.dp))
+                    Text(position, color = muted, fontSize = 11.sp)
                 }
             }
         }
@@ -116,9 +115,9 @@ private fun FileBar(
 ) {
     val colors = MaterialTheme.colors
     val newTabReveal = remember { BringIntoViewRequester() }
-    // One header, with enough height for the oversized logo to stay clear of the text.
-    Box(Modifier.fillMaxWidth().height(100.dp).background(colors.surface.copy(alpha = .35f))) {
-        Row(Modifier.fillMaxSize().padding(start = 114.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+    // The mark deliberately overflows this slim strip onto the text below it.
+    Box(Modifier.fillMaxWidth().height(52.dp).background(colors.surface.copy(alpha = .5f))) {
+        Row(Modifier.fillMaxSize().padding(start = 90.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Row(Modifier.weight(1f).fillMaxHeight().horizontalScroll(rememberScrollState()),
                 verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 workspace.documents.forEach { document ->
@@ -142,8 +141,8 @@ private fun FileBar(
             Brush.horizontalGradient(listOf(Color.Transparent, colors.primary, colors.primary.copy(alpha = .15f), Color.Transparent))))
         Image(
             painterResource(Res.drawable.plush_notebook), "NotebookPlush logo",
-            Modifier.align(Alignment.TopStart).offset(x = 8.dp, y = 4.dp)
-                .wrapContentSize(Alignment.TopStart, unbounded = true).requiredSize(96.dp)
+            Modifier.align(Alignment.TopStart).offset(x = 2.dp, y = 2.dp)
+                .wrapContentSize(Alignment.TopStart, unbounded = true).requiredSize(80.dp)
                 .drawBehind {
                     val radius = size.minDimension * .48f
                     drawCircle(Brush.radialGradient(listOf(Color.Black.copy(alpha = .22f), Color.Transparent),
