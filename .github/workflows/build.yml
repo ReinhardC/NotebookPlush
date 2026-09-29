@@ -44,6 +44,8 @@ jobs:
     needs: check
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-java@v5
@@ -87,6 +89,15 @@ jobs:
             --apk androidApp/build/outputs/apk/release/androidApp-release.apk \
             --manifest update.json \
             --apksigner "$ANDROID_HOME/build-tools/36.0.0/apksigner"
+      - name: Publish signed GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          release_version=$(python3 -c 'import json; print(json.load(open("update.json"))["versionName"])')
+          gh release create "v$release_version" \
+            androidApp/build/outputs/apk/release/androidApp-release.apk update.json \
+            --target "$GITHUB_SHA" --title "NotebookPlush $release_version" \
+            --notes "Signed Android release from main. Commit $GITHUB_SHA. Hosted APK and update manifest verified over HTTPS."
       - name: Keep release artifacts
         uses: actions/upload-artifact@v7
         with:

@@ -1,20 +1,20 @@
 # NotebookPlush hosted updates
 
-NotebookPlush reuses Easynews's hosted Android update mechanism with its own package, feed, and signing key. The default public base is `https://clausfiguren.de/notebookplush/`, as requested. Easynews itself uses `clausbilder.de/easyapp/`. Change `tools/update-host.json` before building if the other domain was intended; never point NotebookPlush at Easynews's feed or publication directory.
+NotebookPlush reuses Easynews's hosted Android update mechanism and stable release signing key with its own package and feed. The public base is `https://clausbilder.de/notebookplush/`. Easynews uses `clausbilder.de/easyapp/`; the two publication directories and manifests are separate.
 
-GitHub CI is the production release publisher for [ReinhardC/NotebookPlush](https://github.com/ReinhardC/NotebookPlush). On each push to `main`, `.github/workflows/build.yml` runs build checks and tests, builds with the stable release key from GitHub secrets, then publishes the verified APK and manifest to the host. This checkout has not published a feed. The CI signing/hosting secrets still need configuring; no release key or hosting credentials need to be stored in the local project.
+GitHub CI is the production release publisher for [ReinhardC/NotebookPlush](https://github.com/ReinhardC/NotebookPlush). On each push to `main`, `.github/workflows/build.yml` runs build checks and tests, builds with the stable release key from GitHub secrets, then publishes the verified APK and manifest to the host. The four CI signing/hosting secrets were copied directly from Easynews through an isolated temporary GitHub workflow, then its transfer branch and temporary credential were removed. No secret values were downloaded into this checkout or committed.
 
 ## Host configuration
 
 `tools/update-host.json` supplies the HTTPS base URL, stable opaque manifest filename, and SFTP directory to both Gradle and the publisher. The base URL must end in `/`. Keep the manifest filename stable after distributing the first release. APKs use their SHA-256 as the filename, so a previously checked update stays downloadable during later publications.
 
-The default SFTP host is `hosting.telekom.de`, borrowing Easynews's provider. Set `sftpHost` in the configuration if clausfiguren.de uses another provider. `tools/update-host-known_hosts` contains Easynews's pinned Telekom host keys; another provider requires independently verified keys in that file. The publisher rejects unknown host keys. Confirm that `public_html/notebookplush` actually maps to the configured HTTPS directory for this hosting account.
+The SFTP host is `hosting.telekom.de`, borrowing Easynews's provider. This is the server in [Telekom's SFTP documentation](https://homepagecenter.telekom.de/hilfe/uebersicht-der-server); it is distinct from the public download hostname. `tools/update-host-known_hosts` contains Easynews's pinned Telekom host key. The publisher rejects unknown host keys. The mapping of `public_html/notebookplush` to the configured HTTPS directory is verified by downloading each published APK and manifest over HTTPS.
 
 Publishing uploads a temporary APK and renames it atomically, downloads the public HTTPS copy to check size/hash, then atomically replaces the manifest and verifies its public copy. Failed APK uploads leave the previous feed usable. Older APKs are retained. A blank `index.html` suppresses directory listings; the feed is public and its opaque filename is not an access-control mechanism.
 
 ## Stable release signing
 
-Create and back up a dedicated NotebookPlush release key outside the repository. Every distributed release must use that same key. Gradle reads:
+Every distributed release must use the same stable key. CI currently reuses Easynews's Sideload release key, with repository variable `NOTEBOOKPLUSH_KEY_ALIAS=easynews`. Keep its backup outside the repository. Gradle reads:
 
 | Setting | Purpose |
 | --- | --- |
@@ -69,7 +69,7 @@ Configure these repository secrets:
 - `NOTEBOOKPLUSH_KEY_PASSWORD`: optional separate key password; blank falls back to the store password.
 - `NOTEBOOKPLUSH_UPDATE_USER` and `NOTEBOOKPLUSH_UPDATE_PASSWORD`: hosting SFTP credentials.
 
-The optional repository variable `NOTEBOOKPLUSH_KEY_ALIAS` defaults to `notebookplush`. Main publications are serialized and run with read-only repository permissions. Pull requests do not receive the release key or publish. Signed APK/manifest artifacts are retained in the successful publication run. The action majors match Easynews's [checkout](https://github.com/actions/checkout/releases/tag/v7.0.0), [Gradle setup](https://github.com/gradle/actions/releases/tag/v6.0.0), and [Android SDK setup](https://github.com/android-actions/setup-android/releases/tag/v4.0.0) versions.
+The optional repository variable `NOTEBOOKPLUSH_KEY_ALIAS` defaults to `notebookplush`; this repository sets it to `easynews` for the reused key. Main publications are serialized. Checks use read-only repository permissions; the publication job has contents-write permission to create a GitHub release after hosted verification succeeds. Each release uses its own version tag and retains the signed APK and manifest. Pull requests do not receive the release key or publish. Signed APK/manifest artifacts are also retained in the successful publication run. The action majors match Easynews's [checkout](https://github.com/actions/checkout/releases/tag/v7.0.0), [Gradle setup](https://github.com/gradle/actions/releases/tag/v6.0.0), and [Android SDK setup](https://github.com/android-actions/setup-android/releases/tag/v4.0.0) versions.
 
 ## Runtime behavior and checks
 

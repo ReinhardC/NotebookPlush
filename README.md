@@ -2,7 +2,7 @@
 
 A cozy Android text editor for JSON, built with Kotlin and Compose Multiplatform.
 
-[GitHub repository](https://github.com/ReinhardC/NotebookPlush) · [Build and release runs](https://github.com/ReinhardC/NotebookPlush/actions)
+[GitHub repository](https://github.com/ReinhardC/NotebookPlush) · [Download releases](https://github.com/ReinhardC/NotebookPlush/releases) · [Build and release runs](https://github.com/ReinhardC/NotebookPlush/actions)
 
 ## Editing JSON
 
@@ -22,9 +22,9 @@ The supplied blue plush notebook artwork sits oversized at the upper left, overl
 
 ## Hosted updates
 
-The update button checks the NotebookPlush feed at `https://clausfiguren.de/notebookplush/`. Signed release builds also check once at startup, show a prompt only for newer builds, and support a seven-day Later reminder and an automatic-check toggle. Downloads are verified against their size, SHA-256, package, version, and the installed app's signing certificate before Android asks for installation confirmation.
+The update button checks the NotebookPlush feed at `https://clausbilder.de/notebookplush/`. Signed release builds also check once at startup, show a prompt only for newer builds, and support a seven-day Later reminder and an automatic-check toggle. Downloads are verified against their size, SHA-256, package, version, and the installed app's signing certificate before Android asks for installation confirmation.
 
-The app and publisher share `tools/update-host.json`. GitHub CI builds, signs, and publishes releases after checks pass on pushes to `main`. No feed has been published from this workspace: signing/hosting secrets still need configuring in the GitHub repository. See [CI release and hosting setup](docs/updates.md). Debug/QA builds do not check automatically, and a release APK cannot update an installation signed with a different key.
+The app and publisher share `tools/update-host.json`. GitHub CI builds, signs, and publishes releases after checks pass on pushes to `main`, using signing and hosting secrets configured from Easynews. Uploads use Telekom's SFTP server `hosting.telekom.de`; downloads use the separate NotebookPlush directory on `clausbilder.de`. Verified releases are also downloadable from GitHub Releases. See [CI release and hosting setup](docs/updates.md). Debug/QA builds do not check automatically, and a release APK cannot update an installation signed with a different key.
 
 ## Open and run
 

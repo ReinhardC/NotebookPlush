@@ -1,5 +1,6 @@
-﻿{
-    "baseUrl":  "https://clausfiguren.de/notebookplush/",
+{
+    "baseUrl":  "https://clausbilder.de/notebookplush/",
     "remoteDirectory":  "public_html/notebookplush",
+    "sftpHost": "hosting.telekom.de",
     "manifestName":  "689599302b1b486f95ab24e4b5dab22a.json"
 }

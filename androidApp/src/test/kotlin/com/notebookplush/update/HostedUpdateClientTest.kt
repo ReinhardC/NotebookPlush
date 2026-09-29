@@ -28,7 +28,7 @@ class HostedUpdateClientTest {
         transport.response = manifestJson.replace("42", "43").replace("a".repeat(64), "c".repeat(64))
         var progress = 0L
         client.download(update, File("unused.apk")) { progress = it }
-        assertEquals("https://clausfiguren.de/notebookplush/${manifest.sha256}.apk", transport.downloadUrl)
+        assertEquals("https://clausbilder.de/notebookplush/${manifest.sha256}.apk", transport.downloadUrl)
         assertEquals(100L, transport.size)
         assertEquals(100L, progress)
     }
@@ -60,12 +60,12 @@ class HostedUpdateClientTest {
         assertTrue(allowedUpdateUrl(UpdateManifestUrl))
         assertTrue(allowedUpdateUrl(AvailableUpdate(manifest).apkUrl))
         for (url in listOf(
-            "http://clausfiguren.de/easyapp/a.apk", "https://clausfiguren.de.evil.test/a.apk",
-            "https://evil.test/clausfiguren.de", "https://reader@clausfiguren.de/a.apk",
-            "https://clausfiguren.de:444/a.apk", "https://clausfiguren.de/a.apk#fragment",
-            "https://clausfiguren.de/notebookplush/../easyapp/a.apk",
-            "https://clausfiguren.de/notebookplush/%2e%2e/easyapp/a.apk",
-            "https://clausfiguren.de/notebookplush-other/a.apk",
+            "http://clausbilder.de/easyapp/a.apk", "https://clausbilder.de.evil.test/a.apk",
+            "https://evil.test/clausbilder.de", "https://reader@clausbilder.de/a.apk",
+            "https://clausbilder.de:444/a.apk", "https://clausbilder.de/a.apk#fragment",
+            "https://clausbilder.de/notebookplush/../easyapp/a.apk",
+            "https://clausbilder.de/notebookplush/%2e%2e/easyapp/a.apk",
+            "https://clausbilder.de/notebookplush-other/a.apk",
             "https://api.github.com/repos/ReinhardC/Easynews", "not a URL",
         )) assertFalse(url, allowedUpdateUrl(url))
     }
