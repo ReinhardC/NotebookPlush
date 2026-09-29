@@ -9,8 +9,8 @@ A cozy Android text editor for JSON, built with Kotlin and Compose Multiplatform
 - JSON syntax highlighting gives keys, strings, numbers, and booleans/null distinct colors.
 - Edit plain text with a monospace font, line numbers, undo/redo, and optional word wrapping.
 - Open a file with the Android document picker and use Save as to export UTF-8 text. Editing never reformats or validates the JSON automatically.
-- Rename your draft above the editor, or switch to Focus mode to hide the toolbar. The footer shows the cursor's line and column.
-- Keep multiple files open in scrolling tabs with JSON/file icons and a dot for unexported changes. Each tab keeps its own text, cursor, and undo/redo history while open.
+- The tab is the file's only title; Save as updates it to the chosen filename. Open, Save as, undo/redo, and word wrap live in the translucent bottom status bar alongside local-save status and cursor position.
+- Keep multiple files open in scrolling tabs with JSON/file icons and a dot for unexported changes. A short `+` tab creates a new file. Each file tab keeps its own text, cursor, and undo/redo history while open.
 - All tabs autosave locally after 500 ms of inactivity and when the app leaves the foreground. Names, exact text, cursors, and the selected tab are restored on the next launch. Local autosave does not overwrite an opened file; use Save as to export your edits. Closing a file with unexported changes asks before removing its local draft.
 - Light and dark themes follow the device setting.
 
@@ -22,7 +22,7 @@ The supplied blue plush notebook artwork sits oversized at the upper left, overl
 
 ## Hosted updates
 
-The update button checks the NotebookPlush feed at `https://clausbilder.de/notebookplush/`. Signed release builds also check once at startup, show a prompt only for newer builds, and support a seven-day Later reminder and an automatic-check toggle. Downloads are verified against their size, SHA-256, package, version, and the installed app's signing certificate before Android asks for installation confirmation.
+Signed release builds check the NotebookPlush feed at `https://clausbilder.de/notebookplush/` once at startup, show a prompt only for newer builds, and support a seven-day Later reminder and an automatic-check toggle. The editor header has no update-check button; a manual entry point is planned for a future settings tab. Downloads are verified against their size, SHA-256, package, version, and the installed app's signing certificate before Android asks for installation confirmation.
 
 The app and publisher share `tools/update-host.json`. GitHub CI builds, signs, and publishes releases after checks pass on pushes to `main`, using signing and hosting secrets configured from Easynews. Uploads use Telekom's SFTP server `hosting.telekom.de`; downloads use the separate NotebookPlush directory on `clausbilder.de`. Verified releases are also downloadable from GitHub Releases. See [CI release and hosting setup](docs/updates.md). Debug/QA builds do not check automatically, and a release APK cannot update an installation signed with a different key.
 

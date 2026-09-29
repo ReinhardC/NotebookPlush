@@ -73,7 +73,6 @@ class MainActivity : ComponentActivity() {
             App(
                 workspace = workspace, saveStatus = saveStatus, position = position,
                 canUndo = canUndo, canRedo = canRedo, wordWrap = wordWrap,
-                onNameChanged = { name -> change(workspace.update(workspace.activeId) { it.copy(name = name) }); applyLanguage(workspace.activeId) },
                 onUndo = { activeEditor()?.undo(); refreshEditorState() },
                 onRedo = { activeEditor()?.redo(); refreshEditorState() },
                 onWrapChanged = {
@@ -92,7 +91,7 @@ class MainActivity : ComponentActivity() {
                     val document = workspace.documents.first { it.id == id }
                     if (document.modified) closing = document else closeDocument(id)
                 },
-                onUpdates = { updates.check() }, closing = closing,
+                closing = closing,
                 onCancelClose = { closing = null },
                 onConfirmClose = { closing?.let { closeDocument(it.id) }; closing = null },
                 editor = { modifier, dark ->
@@ -239,11 +238,18 @@ class MainActivity : ComponentActivity() {
         fileWorker.execute {
             val result = runCatching {
                 requireNotNull(contentResolver.openOutputStream(uri, "wt")).writer(Charsets.UTF_8).use { it.write(exported.text) }
+                // Save as owns naming now that the duplicate filename field is gone.
+                runCatching {
+                    contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
+                        if (it.moveToFirst()) it.getString(0) else null
+                    }
+                }.getOrNull() ?: exported.name
             }
             runOnUiThread {
                 if (!isDestroyed) {
-                    result.onSuccess {
-                        change(workspace.update(exported.id) { it.copy(sourceUri = uri.toString(), savedText = exported.text) })
+                    result.onSuccess { name ->
+                        change(workspace.update(exported.id) { it.copy(name = name, sourceUri = uri.toString(), savedText = exported.text) })
+                        applyLanguage(exported.id)
                     }
                     Toast.makeText(this, result.fold({ "File saved" }, { "Could not save file: ${it.localizedMessage}" }), Toast.LENGTH_LONG).show()
                 }

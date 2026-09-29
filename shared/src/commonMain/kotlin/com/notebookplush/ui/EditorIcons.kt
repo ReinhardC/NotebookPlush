@@ -11,7 +11,6 @@ internal object EditorIcons {
         ImageVector.Builder(name, 24.dp, 24.dp, 24f, 24f).apply {
             path(fill = null, stroke = SolidColor(Color.White), strokeLineWidth = 1.8f, pathBuilder = draw)
         }.build()
-    val Add = icon("New file") { moveTo(12f, 4f); lineTo(12f, 20f); moveTo(4f, 12f); lineTo(20f, 12f) }
     val Close = icon("Close") { moveTo(6f, 6f); lineTo(18f, 18f); moveTo(18f, 6f); lineTo(6f, 18f) }
     val Open = icon("Open file") {
         moveTo(3f, 20f); lineTo(3f, 5f); lineTo(10f, 5f); lineTo(12f, 8f); lineTo(21f, 8f)
@@ -34,14 +33,6 @@ internal object EditorIcons {
         moveTo(3f, 6f); lineTo(21f, 6f); moveTo(3f, 12f); lineTo(17f, 12f)
         curveTo(23f, 12f, 23f, 20f, 17f, 20f); lineTo(12f, 20f)
         moveTo(15f, 17f); lineTo(12f, 20f); lineTo(15f, 23f); moveTo(3f, 18f); lineTo(8f, 18f)
-    }
-    val Updates = icon("App updates") {
-        moveTo(12f, 3f); lineTo(12f, 15f); moveTo(7f, 10f); lineTo(12f, 15f); lineTo(17f, 10f)
-        moveTo(4f, 16f); lineTo(4f, 21f); lineTo(20f, 21f); lineTo(20f, 16f)
-    }
-    val Focus = icon("Focus mode") {
-        moveTo(3f, 9f); lineTo(3f, 3f); lineTo(9f, 3f); moveTo(15f, 3f); lineTo(21f, 3f); lineTo(21f, 9f)
-        moveTo(21f, 15f); lineTo(21f, 21f); lineTo(15f, 21f); moveTo(9f, 21f); lineTo(3f, 21f); lineTo(3f, 15f)
     }
     val File = icon("Text file") {
         moveTo(5f, 2f); lineTo(14f, 2f); lineTo(20f, 8f); lineTo(20f, 22f); lineTo(5f, 22f); close()
