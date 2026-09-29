@@ -11,6 +11,7 @@ import com.notebookplush.storage.WorkspaceStore
 import java.io.File
 import io.github.rosemoe.sora.lang.styling.TextStyle
 import io.github.rosemoe.sora.widget.CodeEditor
+import io.github.rosemoe.sora.util.IntPair
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -137,6 +138,54 @@ class JsonEditorTest {
         scenario!!.onActivity { it.closeDocument(2) }
         awaitEditor("")
         awaitWorkspace { it.documents.size == 1 && it.active.text.isEmpty() }
+    }
+
+    @Test
+    fun scrollingMarginsPreserveTextAndTouchCoordinatesWithAndWithoutWrapping() {
+        scenario = ActivityScenario.launch(MainActivity::class.java)
+        awaitEditor(sample)
+        val document = (0 until 100).joinToString("\n") { "{\"row\":$it,\"text\":\"${"x".repeat(160)}\"}" }
+        scenario!!.onActivity { findEditor(it.window.decorView)!!.setText(document) }
+        for (wrap in listOf(false, true)) {
+            scenario!!.onActivity { findEditor(it.window.decorView)!!.setWordwrap(wrap) }
+            val deadline = System.currentTimeMillis() + 8000
+            var ready = false
+            while (System.currentTimeMillis() < deadline && !ready) {
+                scenario!!.onActivity {
+                    val editor = findEditor(it.window.decorView)!!
+                    ready = editor.height > 0 && editor.isEditable()
+                }
+                if (!ready) Thread.sleep(50)
+            }
+            assertTrue("Wrapped layout must finish", ready)
+            scenario!!.onActivity {
+                val editor = findEditor(it.window.decorView)!!
+                val inset = editor.getRowTop(0)
+                assertEquals(document, editor.text.toString())
+                assertEquals(100, editor.text.lineCount)
+                assertTrue("First line clears the 80 dp logo", inset > 80 * editor.dpUnit)
+                assertEquals(inset.toFloat(), editor.layout.getCharLayoutOffset(0, 0)[0] - editor.rowHeight, .1f)
+                assertEquals(editor.layout.rowCount * editor.rowHeight + inset * 2, editor.layout.layoutHeight)
+
+                fun checkTouch(line: Int) {
+                    val offset = editor.layout.getCharLayoutOffset(line, 5)
+                    val point = editor.getPointPositionOnScreen(
+                        editor.measureTextRegionOffset() + offset[1] - editor.offsetX,
+                        offset[0] - editor.rowHeight / 2f - editor.offsetY)
+                    assertEquals("Inset-aware touched line", line, IntPair.getFirst(point))
+                    assertEquals("Inset-aware touched column", 5, IntPair.getSecond(point))
+                }
+                val max = editor.scrollMaxY
+                editor.scroller.startScroll(0, 0, 0, 0, 0)
+                editor.scroller.abortAnimation()
+                checkTouch(0)
+                editor.scroller.startScroll(0, 0, 0, max, 0)
+                editor.scroller.abortAnimation()
+                assertEquals("Equal trailing margin at the scroll limit", (editor.height - inset).toFloat(),
+                    editor.layout.getCharLayoutOffset(99, document.substringAfterLast('\n').length)[0] - editor.offsetY, .1f)
+                checkTouch(99)
+            }
+        }
     }
 
     private fun clearWorkspace() {

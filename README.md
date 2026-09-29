@@ -18,7 +18,7 @@ The editor uses [Sora Editor](https://github.com/Rosemoe/sora-editor/tree/0.24.6
 
 Sora is Android-specific; additional platforms will need their own editor adapter, while the Compose app shell and workspace model can stay shared. Existing single-file drafts are migrated automatically. Undo history lasts for the current Activity; text and cursors also survive rotation and relaunch.
 
-The supplied blue plush notebook artwork sits at the upper-left corner at 80 dp, deliberately overlapping the text beneath the slim 52 dp tab strip. Text scrolls behind the half-transparent top and bottom bars; the raised tabs and accent line borrow Easynews's layout. The artwork is also used for the Android launcher icon, with adaptive icons on Android 8+ and density-specific icons for Android 7. The original PNG stays in the project root.
+The supplied blue plush notebook artwork sits at the upper-left corner at 80 dp, overlapping the page beneath the slim 52 dp tab strip. Equal 88 dp scrolling margins let the first line start just below the logo and leave breathing room after the last line. These margins are visual spacing, not blank lines added to your file. Text still scrolls behind the half-transparent top and bottom bars; the raised tabs and accent line borrow Easynews's layout. The artwork is also used for the Android launcher icon, with adaptive icons on Android 8+ and density-specific icons for Android 7. The original PNG stays in the project root.
 
 ## Hosted updates
 

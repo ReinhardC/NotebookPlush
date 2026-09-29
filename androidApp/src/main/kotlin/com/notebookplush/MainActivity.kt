@@ -27,6 +27,7 @@ import io.github.rosemoe.sora.event.SelectionChangeEvent
 import io.github.rosemoe.sora.lang.EmptyLanguage
 import io.github.rosemoe.sora.langs.textmate.TextMateLanguage
 import io.github.rosemoe.sora.widget.CodeEditor
+import io.github.rosemoe.sora.widget.InsetCodeEditor
 import io.github.rosemoe.sora.widget.subscribeAlways
 
 class MainActivity : ComponentActivity() {
@@ -101,7 +102,7 @@ class MainActivity : ComponentActivity() {
                             factory = { context ->
                                 val document = workspace.active
                                 editors.getOrPut(document.id) {
-                                    CodeEditor(context).apply {
+                                    InsetCodeEditor(context).apply {
                                         contentDescription = "Code editor"
                                         typefaceText = Typeface.MONOSPACE
                                         setTextSize(16f)
