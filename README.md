@@ -22,7 +22,7 @@ Sora is Android-specific; additional platforms will need their own editor adapte
 
 The supplied blue plush notebook artwork sits at the upper-left corner at 80 dp, overlapping the page beneath the slim 52 dp tab strip. Tabs align to the right and scroll horizontally when needed. Equal 88 dp scrolling margins let the first line start just below the logo and leave breathing room after the last line. These margins are visual spacing, not blank lines added to your file. Text still scrolls behind the top and bottom bars, which use Easynews's 70% opacity and a darker shade to distinguish the tab faces; the raised tabs and accent line also borrow its layout. The artwork is also used for the Android launcher icon, with adaptive icons on Android 8+ and density-specific icons for Android 7. The original PNG stays in the project root.
 
-In full screen, the toolbars reach the window's top and bottom edges, drawing through the cutout area like Easynews. A docked keyboard lifts the bottom bar above it; a floating DeX keyboard does not reserve an empty strip below the editor.
+In full screen, the toolbars reach the window's top and bottom edges, drawing through the cutout area like Easynews. A docked keyboard lifts the bottom bar above it; a floating DeX keyboard does not reserve an empty strip below the editor. The docked keyboard area has a black backdrop, so Samsung's transparent strip below its keys does not show the blue editor background. Samsung still controls the keyboard's size and reserved space.
 
 ## Hosted updates
 

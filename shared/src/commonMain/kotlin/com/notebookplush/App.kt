@@ -118,6 +118,11 @@ fun App(
             with(density) { 48.dp.roundToPx() }
         val keyboardInsets = if (dockedKeyboard) WindowInsets.ime else WindowInsets(0)
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(colors.background, colors.surface)))) {
+            // Samsung's docked DeX keyboard leaves its bottom navigation area transparent
+            // even when navigation is hidden. Give the whole IME area a neutral backdrop
+            // so that strip does not expose the editor's blue page background.
+            Spacer(Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                .windowInsetsBottomHeight(keyboardInsets).background(Color.Black))
             Box(Modifier.fillMaxSize().windowInsetsPadding(chromeInsets).windowInsetsPadding(keyboardInsets)) {
                 // Draw chrome over the full editor viewport so text scrolls beneath both bars.
                 if (showingSettings) EditorSettings(showIndentGuides, showWhitespace,
