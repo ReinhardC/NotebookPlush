@@ -9,6 +9,7 @@ A cozy Android text editor for JSON, built with Kotlin and Compose Multiplatform
 - JSON syntax highlighting gives keys, strings, numbers, and booleans/null distinct colors.
 - Edit plain text with a monospace font, line numbers, undo/redo, and optional word wrapping.
 - Open a file with the Android document picker and use Save as to export UTF-8 text. Editing never reformats or validates the JSON automatically.
+- In a file manager, use **Open with → NotebookPlush** for JSON and TXT files; choose **Always** if you want it as the default. Incoming files open in a new tab in the existing workspace. Reopening the same file selects its tab and preserves unsaved edits. JSON uses syntax highlighting; TXT stays plain text, and Save as exports the appropriate MIME type.
 - The tab is the file's only title; Save as updates it to the chosen filename. Open, Save as, undo/redo, and word wrap live in the translucent bottom status bar alongside local-save status and cursor position.
 - Keep multiple files open in scrolling tabs with JSON/file icons and a dot for unexported changes. A short `+` tab creates a new file. Each file tab keeps its own text, cursor, and undo/redo history while open.
 - All tabs autosave locally after 500 ms of inactivity and when the app leaves the foreground. Names, exact text, cursors, and the selected tab are restored on the next launch. Local autosave does not overwrite an opened file; use Save as to export your edits. Closing a file with unexported changes asks before removing its local draft.

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <application
@@ -16,11 +17,63 @@
         </provider>
         <activity
             android:name=".MainActivity"
+            android:launchMode="singleTask"
             android:windowSoftInputMode="adjustResize"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/json" />
+                <data android:mimeType="application/x-json" />
+                <data android:mimeType="text/json" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+            <!-- Filename fallback for managers that send a generic MIME type. Suffixes
+                 handle common case variants and any number of dots on Android 12+;
+                 simple patterns cover common filenames on older Android versions. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:host="*" />
+                <data android:mimeType="*/*" />
+                <data android:pathSuffix=".json" tools:ignore="UnusedAttribute" />
+                <data android:pathSuffix=".JSON" tools:ignore="UnusedAttribute" />
+                <data android:pathSuffix=".Json" tools:ignore="UnusedAttribute" />
+                <data android:pathSuffix=".txt" tools:ignore="UnusedAttribute" />
+                <data android:pathSuffix=".TXT" tools:ignore="UnusedAttribute" />
+                <data android:pathSuffix=".Txt" tools:ignore="UnusedAttribute" />
+                <data android:pathPattern=".*\\.json" />
+                <data android:pathPattern=".*\\..*\\.json" />
+                <data android:pathPattern=".*\\..*\\..*\\.json" />
+                <data android:pathPattern=".*\\.txt" />
+                <data android:pathPattern=".*\\..*\\.txt" />
+                <data android:pathPattern=".*\\..*\\..*\\.txt" />
+            </intent-filter>
+            <!-- An intent with no MIME type needs its own filter. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:host="*" />
+                <data android:pathSuffix=".json" tools:ignore="UnusedAttribute" />
+                <data android:pathSuffix=".JSON" tools:ignore="UnusedAttribute" />
+                <data android:pathSuffix=".Json" tools:ignore="UnusedAttribute" />
+                <data android:pathSuffix=".txt" tools:ignore="UnusedAttribute" />
+                <data android:pathSuffix=".TXT" tools:ignore="UnusedAttribute" />
+                <data android:pathSuffix=".Txt" tools:ignore="UnusedAttribute" />
+                <data android:pathPattern=".*\\.json" />
+                <data android:pathPattern=".*\\..*\\.json" />
+                <data android:pathPattern=".*\\..*\\..*\\.json" />
+                <data android:pathPattern=".*\\.txt" />
+                <data android:pathPattern=".*\\..*\\.txt" />
+                <data android:pathPattern=".*\\..*\\..*\\.txt" />
             </intent-filter>
         </activity>
     </application>

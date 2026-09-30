@@ -1,5 +1,7 @@
 package com.notebookplush
 
+import android.content.Context
+import android.content.Intent
 import android.graphics.Typeface
 import android.net.Uri
 import android.os.Bundle
@@ -52,6 +54,7 @@ class MainActivity : ComponentActivity() {
     private var closing by mutableStateOf<Document?>(null)
     private val restoreError get() = session.restoreError
     private val editors = mutableMapOf<Long, CodeEditor>()
+    private var viewIntentHandled = false
     private var exportDocument: Document?
         get() = session.exportDocument
         set(value) { session.exportDocument = value }
@@ -59,7 +62,10 @@ class MainActivity : ComponentActivity() {
     private val openFile = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) readDocument(uri)
     }
-    private val saveAs = registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+    private val saveAs = registerForActivityResult(object : ActivityResultContracts.CreateDocument("text/plain") {
+        override fun createIntent(context: Context, input: String): Intent =
+            super.createIntent(context, input).setType(if (input.endsWith(".json", true)) "application/json" else "text/plain")
+    }) { uri ->
         val exported = exportDocument
         if (uri != null && exported != null) writeDocument(uri, exported)
         exportDocument = null
@@ -67,6 +73,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        viewIntentHandled = savedInstanceState?.getBoolean("viewIntentHandled") ?: false
         enableEdgeToEdge()
         wordWrap = getSharedPreferences("notebook", MODE_PRIVATE).getBoolean("wrap", false)
         JsonHighlighting.initialize(applicationContext)
@@ -141,6 +148,29 @@ class MainActivity : ComponentActivity() {
             val updateState by updates.state.collectAsState()
             LaunchedEffect(updateState.initialized, updateState.busy) { updates.checkAtStartup() }
         }
+        if (!viewIntentHandled) openViewIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        viewIntentHandled = false
+        openViewIntent(intent)
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putBoolean("viewIntentHandled", viewIntentHandled)
+        super.onSaveInstanceState(outState)
+    }
+
+    private fun openViewIntent(request: Intent) {
+        if (request.action != Intent.ACTION_VIEW || restoreError != null) return
+        val uri = request.data ?: return
+        if (uri.scheme != "content" && uri.scheme != "file") return
+        // Keep the request pending until the read completes, so rotation during I/O retries it.
+        readDocument(uri, request.type) {
+            if (intent.data == uri) viewIntentHandled = true
+        }
     }
 
     private fun activeEditor(): CodeEditor? = editors[workspace.activeId]
@@ -211,26 +241,40 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun readDocument(uri: Uri) {
+    private fun readDocument(uri: Uri, mimeType: String? = null, onComplete: () -> Unit = {}) {
+        captureEditors()
+        val existing = workspace.documents.firstOrNull { it.sourceUri == uri.toString() }
+        if (existing != null) {
+            selectDocument(existing.id)
+            onComplete()
+            return
+        }
         fileWorker.execute {
             val result = runCatching {
-                val name = contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
-                    if (it.moveToFirst()) it.getString(0) else null
-                } ?: "untitled.json"
+                val name = runCatching {
+                    contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
+                        if (it.moveToFirst()) it.getString(0)?.takeIf(String::isNotBlank) else null
+                    }
+                }.getOrNull() ?: uri.lastPathSegment?.substringAfterLast('/')?.takeIf {
+                    it.endsWith(".json", true) || it.endsWith(".txt", true)
+                } ?: if ((mimeType ?: runCatching { contentResolver.getType(uri) }.getOrNull()) == "text/plain") "untitled.txt" else "untitled.json"
                 val text = requireNotNull(contentResolver.openInputStream(uri)).bufferedReader(Charsets.UTF_8).use { it.readText() }
                 Document(0, name, text, uri.toString(), savedText = text)
             }
             runOnUiThread {
-                if (!isDestroyed) result.fold(
-                    onSuccess = { loaded ->
-                        captureEditors()
-                        val existing = workspace.documents.firstOrNull { it.sourceUri == uri.toString() }
-                        if (existing != null) selectDocument(existing.id)
-                        else change(workspace.add(loaded.copy(id = workspace.nextId())))
-                        refreshEditorState()
-                    },
-                    onFailure = { Toast.makeText(this, "Could not open file: ${it.localizedMessage}", Toast.LENGTH_LONG).show() },
-                )
+                if (!isDestroyed) {
+                    result.fold(
+                        onSuccess = { loaded ->
+                            captureEditors()
+                            val existing = workspace.documents.firstOrNull { it.sourceUri == uri.toString() }
+                            if (existing != null) selectDocument(existing.id)
+                            else change(workspace.add(loaded.copy(id = workspace.nextId())))
+                            refreshEditorState()
+                        },
+                        onFailure = { Toast.makeText(this, "Could not open file: ${it.localizedMessage}", Toast.LENGTH_LONG).show() },
+                    )
+                    onComplete()
+                }
             }
         }
     }

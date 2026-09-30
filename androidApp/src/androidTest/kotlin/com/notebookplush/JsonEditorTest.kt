@@ -1,28 +1,42 @@
 package com.notebookplush
 
 import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
 import android.view.View
 import android.view.ViewGroup
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
+import androidx.test.runner.lifecycle.Stage
+import androidx.core.content.FileProvider
+import androidx.lifecycle.ViewModelProvider
 import com.notebookplush.model.Workspace
 import com.notebookplush.storage.WorkspaceStore
+import com.notebookplush.storage.WorkspaceSession
 import java.io.File
 import io.github.rosemoe.sora.lang.styling.TextStyle
 import io.github.rosemoe.sora.widget.CodeEditor
+import io.github.rosemoe.sora.lang.EmptyLanguage
+import io.github.rosemoe.sora.langs.textmate.TextMateLanguage
 import io.github.rosemoe.sora.util.IntPair
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 @RunWith(AndroidJUnit4::class)
 class JsonEditorTest {
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
     private val preferences = context.getSharedPreferences("notebook", Context.MODE_PRIVATE)
     private var scenario: ActivityScenario<MainActivity>? = null
+    private val associationFixtures = mutableListOf<File>()
     private val sample = """{"name": "Plush 🧸", "count": 7, "enabled": true, "empty": null}"""
 
     @Before
@@ -35,6 +49,15 @@ class JsonEditorTest {
     @After
     fun restoreDraft() {
         scenario?.close()
+        if (scenario == null) {
+            InstrumentationRegistry.getInstrumentation().runOnMainSync {
+                listOf(Stage.RESUMED, Stage.STARTED, Stage.PAUSED, Stage.STOPPED, Stage.CREATED)
+                    .flatMap { ActivityLifecycleMonitorRegistry.getInstance().getActivitiesInStage(it) }
+                    .filterIsInstance<MainActivity>().forEach { it.finish() }
+            }
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+        }
+        associationFixtures.forEach { it.delete() }
     }
 
     @Test
@@ -141,6 +164,136 @@ class JsonEditorTest {
     }
 
     @Test
+    fun fileAssociationsMatchJsonAndTxtWithoutClaimingOtherFilesOrWebLinks() {
+        fun matches(uri: String, mime: String?): Boolean {
+            val request = Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse(uri), mime)
+                .setPackage(context.packageName)
+            return context.packageManager.queryIntentActivities(request, PackageManager.MATCH_DEFAULT_ONLY)
+                .any { it.activityInfo.name == MainActivity::class.java.name }
+        }
+        for (mime in listOf("application/json", "application/x-json", "text/json", "text/plain")) {
+            assertTrue("Registered type $mime with an opaque provider URI", matches("content://example.documents/42", mime))
+        }
+        for (extension in listOf("json", "txt")) {
+            for (mime in listOf(null, "application/octet-stream")) {
+                assertTrue("Filename fallback for $extension / $mime",
+                    matches("file:///storage/emulated/0/Download/my.settings.$extension", mime))
+                assertTrue(matches("content://example.documents/files/notes.$extension", mime))
+                if (Build.VERSION.SDK_INT >= 31) {
+                    assertTrue(matches("content://example.documents/files/a.b.c.d.${extension.uppercase()}", mime))
+                }
+            }
+        }
+        assertFalse(matches("content://example.documents/photo.jpg", "image/jpeg"))
+        assertFalse(matches("content://example.documents/archive.zip", "application/octet-stream"))
+        assertFalse(matches("https://example.com/notes.json", "application/json"))
+    }
+
+    @Test
+    fun externalJsonOpensAtLaunchAndPreservesDraftOnReopenAndRotation() {
+        val original = """{"opened": "from a file manager", "unicode": "\u2603"}"""
+        val request = associationIntent("external.settings.json", original, "application/json")
+        launchExternal(request)
+        awaitEditor(original)
+        awaitWorkspace { it.documents.size == 2 && it.active.name == "external.settings.json" &&
+            it.documents[0].text == sample && it.active.savedText == original }
+        onExternalActivity {
+            val editor = findEditor(it.window.decorView)!!
+            assertTrue(editor.editorLanguage is TextMateLanguage)
+            editor.setSelection(0, original.length)
+            editor.insertText("\n", 1)
+            it.startActivity(request)
+        }
+        awaitEditor(original + "\n")
+        awaitWorkspace { it.documents.size == 2 && it.active.text == original + "\n" }
+        assertEquals("Opening and editing must not overwrite the original file", original, associationFixtures.single().readText())
+        onExternalActivity { it.selectDocument(1) }
+        awaitEditor(sample)
+        recreateExternalActivity()
+        awaitEditor(sample)
+        awaitWorkspace { it.documents.size == 2 && it.activeId == 1L }
+    }
+
+    @Test
+    fun externalTxtReusesActivityAndRetriesAReadInterruptedByRotation() {
+        val original = "Plain text\nSecond line, with a tab:\there\n"
+        val request = associationIntent("external.notes.txt", original, "text/plain")
+        launchExternal(Intent(context, MainActivity::class.java))
+        awaitEditor(sample)
+        lateinit var current: MainActivity
+        onExternalActivity { current = it; it.startActivity(request) }
+        awaitEditor(original)
+        onExternalActivity {
+            assertSame("Open with must reuse the existing workspace Activity", current, it)
+            assertTrue(findEditor(it.window.decorView)!!.editorLanguage is EmptyLanguage)
+        }
+        awaitWorkspace { it.documents.size == 2 && it.active.name == "external.notes.txt" && it.documents[0].text == sample }
+
+        val waiting = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val second = associationIntent("rotation.txt", "Survived rotation", "text/plain")
+        try {
+            onExternalActivity {
+                ViewModelProvider(it)[WorkspaceSession::class.java].fileWorker.execute {
+                    waiting.countDown()
+                    release.await(8, TimeUnit.SECONDS)
+                }
+            }
+            assertTrue(waiting.await(8, TimeUnit.SECONDS))
+            onExternalActivity { it.startActivity(second) }
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+            recreateExternalActivity()
+        } finally { release.countDown() }
+        awaitEditor("Survived rotation")
+        awaitWorkspace { it.documents.size == 3 && it.active.name == "rotation.txt" }
+        recreateExternalActivity()
+        awaitEditor("Survived rotation")
+        awaitWorkspace { it.documents.size == 3 }
+    }
+
+    private fun associationIntent(name: String, text: String, mime: String): Intent {
+        val directory = File(context.filesDir, "association-fixtures").apply { mkdirs() }
+        val file = File(directory, name).apply { writeText(text, Charsets.UTF_8) }
+        associationFixtures += file
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", file)
+        return Intent(Intent.ACTION_VIEW).setDataAndType(uri, mime).setPackage(context.packageName)
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+
+    // ActivityScenario tracks the original launch intent and loses lifecycle updates when
+    // onNewIntent calls setIntent. Use the lifecycle monitor for external-file launches.
+    private fun externalActivity(): MainActivity? = listOf(Stage.RESUMED, Stage.STARTED, Stage.PAUSED)
+        .flatMap { ActivityLifecycleMonitorRegistry.getInstance().getActivitiesInStage(it) }
+        .filterIsInstance<MainActivity>().firstOrNull()
+
+    private fun onExternalActivity(action: (MainActivity) -> Unit) {
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            action(requireNotNull(externalActivity()) { "Editor Activity is not running" })
+        }
+    }
+
+    private fun launchExternal(request: Intent) {
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            context.startActivity(Intent(request).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK))
+        }
+    }
+
+    private fun recreateExternalActivity() {
+        lateinit var previous: MainActivity
+        onExternalActivity { previous = it; it.recreate() }
+        val deadline = System.currentTimeMillis() + 8000
+        while (System.currentTimeMillis() < deadline) {
+            var recreated = false
+            InstrumentationRegistry.getInstrumentation().runOnMainSync {
+                recreated = externalActivity()?.let { it !== previous } == true
+            }
+            if (recreated) return
+            Thread.sleep(50)
+        }
+        fail("Editor Activity was not recreated")
+    }
+
+    @Test
     fun scrollingMarginsPreserveTextAndTouchCoordinatesWithAndWithoutWrapping() {
         scenario = ActivityScenario.launch(MainActivity::class.java)
         awaitEditor(sample)
@@ -207,7 +360,12 @@ class JsonEditorTest {
         val deadline = System.currentTimeMillis() + 8000
         while (System.currentTimeMillis() < deadline) {
             var found = false
-            scenario!!.onActivity { activity -> found = findEditor(activity.window.decorView)?.text.toString() == text }
+            val activityScenario = scenario
+            if (activityScenario != null) activityScenario.onActivity { activity ->
+                found = findEditor(activity.window.decorView)?.text.toString() == text
+            } else InstrumentationRegistry.getInstrumentation().runOnMainSync {
+                found = externalActivity()?.let { findEditor(it.window.decorView)?.text.toString() == text } == true
+            }
             if (found) return
             Thread.sleep(50)
         }
