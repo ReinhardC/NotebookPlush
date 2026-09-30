@@ -60,13 +60,13 @@ class HostedUpdateClientTest {
         assertTrue(allowedUpdateUrl(UpdateManifestUrl))
         assertTrue(allowedUpdateUrl(AvailableUpdate(manifest).apkUrl))
         for (url in listOf(
-            "http://clausbilder.de/easyapp/a.apk", "https://clausbilder.de.evil.test/a.apk",
+            "http://clausbilder.de/otherapp/a.apk", "https://clausbilder.de.evil.test/a.apk",
             "https://evil.test/clausbilder.de", "https://reader@clausbilder.de/a.apk",
             "https://clausbilder.de:444/a.apk", "https://clausbilder.de/a.apk#fragment",
-            "https://clausbilder.de/notebookplush/../easyapp/a.apk",
-            "https://clausbilder.de/notebookplush/%2e%2e/easyapp/a.apk",
+            "https://clausbilder.de/notebookplush/../otherapp/a.apk",
+            "https://clausbilder.de/notebookplush/%2e%2e/otherapp/a.apk",
             "https://clausbilder.de/notebookplush-other/a.apk",
-            "https://api.github.com/repos/ReinhardC/Easynews", "not a URL",
+            "https://api.github.com/repos/ReinhardC/NotebookPlush", "not a URL",
         )) assertFalse(url, allowedUpdateUrl(url))
     }
 }

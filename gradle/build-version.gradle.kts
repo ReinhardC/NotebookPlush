@@ -2,7 +2,7 @@ import java.time.Instant
 import org.gradle.api.provider.ValueSource
 import org.gradle.api.provider.ValueSourceParameters
 
-// Local and CI releases use seconds since 2020-01-01 UTC, as in Easynews.
+// Local and CI releases use seconds since 2020-01-01 UTC.
 // The epoch leaves room below Android's 2.1 billion limit
 // until July 2086. Build machines must have synchronized clocks; no network counter is needed.
 abstract class UtcBuildTime : ValueSource<Long, ValueSourceParameters.None> {

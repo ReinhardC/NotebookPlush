@@ -50,7 +50,7 @@ import com.notebookplush.ui.CloseAllTabsIcon
 import com.notebookplush.ui.CloseOtherTabsIcon
 import org.jetbrains.compose.resources.painterResource
 
-// Match Easynews's BarChrome: 70% chrome, with 30% of the scrolling text showing through.
+// Toolbars: 70% chrome, with 30% of the scrolling text showing through.
 private const val ToolbarOpacity = .7f
 
 @Composable
@@ -108,11 +108,11 @@ fun App(
             lastDocumentId = workspace.activeId
         }
         val muted = colors.onSurface.copy(alpha = .6f)
-        // Like Easynews, immersive chrome draws through the cutout area.
+        // Immersive chrome draws through the cutout area.
         val chromeInsets = if (fullScreen) WindowInsets.statusBars.union(WindowInsets.navigationBars)
             else WindowInsets.systemBars.union(WindowInsets.displayCutout).union(WindowInsets.waterfall)
         val density = LocalDensity.current
-        // Easynews's docked-keyboard test: DeX's floating keyboard can report a small
+        // Docked-keyboard test: DeX's floating keyboard can report a small
         // IME inset even though it occupies no space along the bottom of the window.
         val dockedKeyboard = WindowInsets.ime.getBottom(density) - WindowInsets.navigationBars.getBottom(density) >
             with(density) { 48.dp.roundToPx() }
@@ -308,7 +308,7 @@ private fun FileTab(name: String, modified: Boolean, icon: ImageVector, active: 
         MaterialTheme(shapes = MaterialTheme.shapes.copy(small = RoundedCornerShape(12.dp))) {
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false },
                 modifier = Modifier.widthIn(min = 220.dp, max = 360.dp)) {
-                // Borrow Easynews's full-title band, including its bleed into the menu's 8 dp padding.
+                // Full-title band, including its bleed into the menu's 8 dp padding.
                 Row(Modifier.layout { measurable, constraints ->
                     val bleed = 8.dp.roundToPx()
                     val placeable = measurable.measure(constraints)

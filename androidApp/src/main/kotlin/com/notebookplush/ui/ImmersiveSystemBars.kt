@@ -9,7 +9,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 
-/** Easynews's window-scoped full screen: edge swipes reveal bars, disposal restores them. */
+/** Window-scoped full screen: edge swipes reveal bars, disposal restores them. */
 @Composable
 internal fun ImmersiveSystemBars(window: Window) {
     val view = LocalView.current

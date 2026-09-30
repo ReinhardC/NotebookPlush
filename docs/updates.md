@@ -1,20 +1,20 @@
 # NotebookPlush hosted updates
 
-NotebookPlush reuses Easynews's hosted Android update mechanism and stable release signing key with its own package and feed. The public base is `https://clausbilder.de/notebookplush/`. Easynews uses `clausbilder.de/easyapp/`; the two publication directories and manifests are separate.
+NotebookPlush publishes signed release APKs and an update manifest to its own hosted feed. The public base is `https://clausbilder.de/notebookplush/`.
 
-GitHub CI is the production release publisher for [ReinhardC/NotebookPlush](https://github.com/ReinhardC/NotebookPlush). On each push to `main`, `.github/workflows/build.yml` runs build checks and tests, builds with the stable release key from GitHub secrets, then publishes the verified APK and manifest to the host. The four CI signing/hosting secrets were copied directly from Easynews through an isolated temporary GitHub workflow, then its transfer branch and temporary credential were removed. No secret values were downloaded into this checkout or committed.
+GitHub CI is the production release publisher for [ReinhardC/NotebookPlush](https://github.com/ReinhardC/NotebookPlush). On each push to `main`, `.github/workflows/build.yml` runs build checks and tests, builds with the stable release key from GitHub secrets, then publishes the verified APK and manifest to the host. No secret values are stored in this checkout.
 
 ## Host configuration
 
 `tools/update-host.json` supplies the HTTPS base URL, stable opaque manifest filename, and SFTP directory to both Gradle and the publisher. The base URL must end in `/`. Keep the manifest filename stable after distributing the first release. APKs use their SHA-256 as the filename, so a previously checked update stays downloadable during later publications.
 
-The SFTP host is `hosting.telekom.de`, borrowing Easynews's provider. This is the server in [Telekom's SFTP documentation](https://homepagecenter.telekom.de/hilfe/uebersicht-der-server); it is distinct from the public download hostname. `tools/update-host-known_hosts` contains Easynews's pinned Telekom host key. The publisher rejects unknown host keys. The mapping of `public_html/notebookplush` to the configured HTTPS directory is verified by downloading each published APK and manifest over HTTPS.
+The SFTP host is `hosting.telekom.de`, the server in [Telekom's SFTP documentation](https://homepagecenter.telekom.de/hilfe/uebersicht-der-server); it is distinct from the public download hostname. `tools/update-host-known_hosts` contains the pinned Telekom host key. The publisher rejects unknown host keys. The mapping of `public_html/notebookplush` to the configured HTTPS directory is verified by downloading each published APK and manifest over HTTPS.
 
 Publishing uploads a temporary APK and renames it atomically, downloads the public HTTPS copy to check size/hash, then atomically replaces the manifest and verifies its public copy. Failed APK uploads leave the previous feed usable. Older APKs are retained. A blank `index.html` suppresses directory listings; the feed is public and its opaque filename is not an access-control mechanism.
 
 ## Stable release signing
 
-Every distributed release must use the same stable key. CI currently reuses Easynews's Sideload release key, with repository variable `NOTEBOOKPLUSH_KEY_ALIAS=easynews`. Keep its backup outside the repository. Gradle reads:
+Every distributed release must use the same stable key. CI reads it from repository secrets; the repository variable `NOTEBOOKPLUSH_KEY_ALIAS` names its alias. Keep a backup of the key outside the repository. Gradle reads:
 
 | Setting | Purpose |
 | --- | --- |
@@ -27,13 +27,13 @@ Without a configured key, Gradle produces an unsigned release rather than silent
 
 An installation using a debug key cannot receive stable release updates. Preserve/export wanted drafts before changing its signing identity. The updater and local deployment helper refuse a different signer and never uninstall the current app.
 
-Both local and future CI builds derive `versionCode` from UTC seconds since 2020-01-01. Keep build machine clocks synchronized and build releases sequentially. `versionName` is `0.2.<versionCode>`. The publisher reads the actual APK output metadata rather than guessing a version.
+Both local and CI builds derive `versionCode` from UTC seconds since 2020-01-01. Keep build machine clocks synchronized and build releases sequentially. `versionName` is `0.2.<versionCode>`. The publisher reads the actual APK output metadata rather than guessing a version.
 
 ## Local signed builds
 
 `setup-release-key.ps1` imports the CI signing key once for the current Windows account. It requires GitHub CLI and repository write access, using an existing `gh` login or Git Credential Manager login. Run it with `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\setup-release-key.ps1`.
 
-The import creates a temporary remote branch and dispatches an isolated workflow based on `tools/export-release-key.yml`. The runner encrypts the signing material for a temporary, non-exportable certificate on this PC. Only the encrypted CMS envelope is uploaded as an artifact. After import, the helper removes the artifact, temporary branch, and recipient certificate/private key. The default CI workflow remains unchanged. Hosting credentials are not imported.
+The import creates a temporary remote branch and dispatches an isolated workflow based on `tools/export-release-key.yml`. The runner encrypts the signing material for a temporary, non-exportable certificate on the local PC. Only the encrypted CMS envelope is uploaded as an artifact. After import, the helper removes the artifact, temporary branch, and recipient certificate/private key. The default CI workflow remains unchanged. Hosting credentials are not imported.
 
 The local copy is stored at `%LOCALAPPDATA%\NotebookPlush\signing\release-key.dpapi`, protected by Windows DPAPI for the current account. Its directory grants access to that account and SYSTEM. This store is specific to the Windows account and PC; keep a separate stable-key backup. The script also pins the signing certificate SHA-256 from the published GitHub release.
 
@@ -48,7 +48,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\test-release-scr
 
 `build-release.ps1` selects JDK 17/21, rejects overlapping Gradle builds, materializes the keystore in a private temporary directory, and invokes `assembleRelease` with configuration caching disabled so signing passwords are not serialized into the workspace cache. It restores process environment variables and removes temporary signing files even when the build fails. The resulting APK must have the same certificate as the published CI release.
 
-`deploy-release.ps1` adds Easynews-style `-ListModels`, `-Model`, `-SkipBuild`, and `-DryRun` switches. The default model is `SM_X906B`; hyphens and underscores are interchangeable. It combines USB/wireless connections to the same device and rejects missing or ambiguous targets. Before installation, every selected device must have a compatible signing certificate and an older version, or no existing NotebookPlush installation. A dry run uses the existing APK and performs these checks without installing. Installation uses `adb install -r`, verifies the installed version, and never uninstalls apps to bypass a signing mismatch.
+`deploy-release.ps1` adds `-ListModels`, `-Model`, `-SkipBuild`, and `-DryRun` switches. The default model is `SM_X906B`; hyphens and underscores are interchangeable. It combines USB/wireless connections to the same device and rejects missing or ambiguous targets. Before installation, every selected device must have a compatible signing certificate and an older version, or no existing NotebookPlush installation. A dry run uses the existing APK and performs these checks without installing. Installation uses `adb install -r`, verifies the installed version, and never uninstalls apps to bypass a signing mismatch.
 
 ## Optional local publication
 
@@ -90,7 +90,7 @@ Configure these repository secrets:
 - `NOTEBOOKPLUSH_KEY_PASSWORD`: optional separate key password; blank falls back to the store password.
 - `NOTEBOOKPLUSH_UPDATE_USER` and `NOTEBOOKPLUSH_UPDATE_PASSWORD`: hosting SFTP credentials.
 
-The optional repository variable `NOTEBOOKPLUSH_KEY_ALIAS` defaults to `notebookplush`; this repository sets it to `easynews` for the reused key. Main publications are serialized. Checks use read-only repository permissions; the publication job has contents-write permission to create a GitHub release after hosted verification succeeds. Each release uses its own version tag and retains the signed APK and manifest. Pull requests do not receive the release key or publish. Signed APK/manifest artifacts are also retained in the successful publication run. The action majors match Easynews's [checkout](https://github.com/actions/checkout/releases/tag/v7.0.0), [Gradle setup](https://github.com/gradle/actions/releases/tag/v6.0.0), and [Android SDK setup](https://github.com/android-actions/setup-android/releases/tag/v4.0.0) versions.
+The optional repository variable `NOTEBOOKPLUSH_KEY_ALIAS` defaults to `notebookplush`; set it if the release key uses a different alias. Main publications are serialized. Checks use read-only repository permissions; the publication job has contents-write permission to create a GitHub release after hosted verification succeeds. Each release uses its own version tag and retains the signed APK and manifest. Pull requests do not receive the release key or publish. Signed APK/manifest artifacts are also retained in the successful publication run. The workflow uses [checkout](https://github.com/actions/checkout/releases/tag/v7.0.0) v7, [Gradle setup](https://github.com/gradle/actions/releases/tag/v6.0.0) v6, and [Android SDK setup](https://github.com/android-actions/setup-android/releases/tag/v4.0.0) v4.
 
 ## Runtime behavior and checks
 
