@@ -521,6 +521,7 @@ class JsonEditorTest {
         }
         fun awaitBars(enabled: Boolean) {
             val deadline = System.currentTimeMillis() + 8000
+            var observed = ""
             while (System.currentTimeMillis() < deadline) {
                 var ready = false
                 scenario!!.onActivity {
@@ -531,12 +532,21 @@ class JsonEditorTest {
                             WindowInsetsController.APPEARANCE_TRANSPARENT_CAPTION_BAR_BACKGROUND else 0
                     val expectedCaption = if (enabled && Build.VERSION.SDK_INT >= 35)
                         WindowInsetsController.APPEARANCE_TRANSPARENT_CAPTION_BAR_BACKGROUND else previousCaption
-                    ready = (Build.VERSION.SDK_INT < 30 || behavior == expected) && caption == expectedCaption
+                    val editor = findEditor(it.window.decorView)!!
+                    val location = IntArray(2).also(editor::getLocationInWindow)
+                    val content = it.findViewById<View>(android.R.id.content)
+                    val contentLocation = IntArray(2).also(content::getLocationInWindow)
+                    // Immersive content fills the activity's content area. A freeform DeX
+                    // window still owns its caption above that area; a maximized one does not.
+                    val fillsWindow = !enabled || (location[1] == contentLocation[1] && editor.height == content.height)
+                    observed = "behavior=$behavior/$expected caption=$caption/$expectedCaption editorY=${location[1]} " +
+                        "editorHeight=${editor.height} contentY=${contentLocation[1]} contentHeight=${content.height}"
+                    ready = (Build.VERSION.SDK_INT < 30 || behavior == expected) && caption == expectedCaption && fillsWindow
                 }
                 if (ready) return
                 Thread.sleep(50)
             }
-            fail("System bar behavior did not switch (full screen=$enabled)")
+            fail("Full screen did not settle (enabled=$enabled): $observed")
         }
         awaitBars(true)
         scenario!!.onActivity {

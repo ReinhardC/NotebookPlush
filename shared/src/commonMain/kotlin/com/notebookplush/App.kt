@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.semantics.Role
@@ -107,8 +108,17 @@ fun App(
             lastDocumentId = workspace.activeId
         }
         val muted = colors.onSurface.copy(alpha = .6f)
+        // Like Easynews, immersive chrome draws through the cutout area.
+        val chromeInsets = if (fullScreen) WindowInsets.statusBars.union(WindowInsets.navigationBars)
+            else WindowInsets.systemBars.union(WindowInsets.displayCutout).union(WindowInsets.waterfall)
+        val density = LocalDensity.current
+        // Easynews's docked-keyboard test: DeX's floating keyboard can report a small
+        // IME inset even though it occupies no space along the bottom of the window.
+        val dockedKeyboard = WindowInsets.ime.getBottom(density) - WindowInsets.navigationBars.getBottom(density) >
+            with(density) { 48.dp.roundToPx() }
+        val keyboardInsets = if (dockedKeyboard) WindowInsets.ime else WindowInsets(0)
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(colors.background, colors.surface)))) {
-            Box(Modifier.fillMaxSize().safeDrawingPadding().imePadding()) {
+            Box(Modifier.fillMaxSize().windowInsetsPadding(chromeInsets).windowInsetsPadding(keyboardInsets)) {
                 // Draw chrome over the full editor viewport so text scrolls beneath both bars.
                 if (showingSettings) EditorSettings(showIndentGuides, showWhitespace,
                     onIndentGuidesChanged, onWhitespaceChanged, fullScreen, onFullScreenChanged,
@@ -373,14 +383,16 @@ private fun EditorSettings(indentGuides: Boolean, whitespace: Boolean,
         TabSizeSetting(tabSize, onTabSizeChanged)
         SettingToggle("Full screen", "Hide system bars; swipe from an edge to show them briefly", fullScreen, onFullScreenChanged)
         SettingToggle("Auto check for updates", "Check once at startup; Later pauses reminders for a week",
-            automaticUpdates, onAutomaticUpdatesChanged)
-        OutlinedButton(onClick = onCheckUpdates, enabled = updateCheckReady) { Text("Check now") }
+            automaticUpdates, onAutomaticUpdatesChanged, footer = {
+                OutlinedButton(onClick = onCheckUpdates, enabled = updateCheckReady) { Text("Check now") }
+            })
     }
 }
 
 @Composable
-private fun SettingToggle(title: String, description: String, checked: Boolean, onChanged: (Boolean) -> Unit) {
-    SettingRow(title, description, Modifier.toggleable(value = checked, role = Role.Switch, onValueChange = onChanged)) {
+private fun SettingToggle(title: String, description: String, checked: Boolean, onChanged: (Boolean) -> Unit,
+    footer: (@Composable () -> Unit)? = null) {
+    SettingRow(title, description, Modifier.toggleable(value = checked, role = Role.Switch, onValueChange = onChanged), footer) {
         Switch(checked, onCheckedChange = null,
             colors = SwitchDefaults.colors(checkedThumbColor = MaterialTheme.colors.primary))
     }
@@ -407,16 +419,22 @@ private fun TabSizeSetting(tabSize: Int, onChanged: (Int) -> Unit) {
 
 @Composable
 private fun SettingRow(title: String, description: String, interaction: Modifier = Modifier,
+    footer: (@Composable () -> Unit)? = null,
     content: @Composable () -> Unit) {
-    Row(Modifier.widthIn(max = 560.dp).fillMaxWidth().clip(RoundedCornerShape(12.dp))
-        .background(MaterialTheme.colors.surface)
-        .then(interaction).padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
-            Text(title, color = MaterialTheme.colors.onSurface, fontSize = 15.sp)
-            Text(description, color = MaterialTheme.colors.onSurface.copy(alpha = .6f), fontSize = 12.sp)
+    Column(Modifier.widthIn(max = 560.dp).fillMaxWidth().clip(RoundedCornerShape(12.dp))
+        .background(MaterialTheme.colors.surface)) {
+        Row(Modifier.fillMaxWidth().then(interaction).padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(title, color = MaterialTheme.colors.onSurface, fontSize = 15.sp)
+                Text(description, color = MaterialTheme.colors.onSurface.copy(alpha = .6f), fontSize = 12.sp)
+            }
+            Spacer(Modifier.width(16.dp))
+            content()
         }
-        Spacer(Modifier.width(16.dp))
-        content()
+        if (footer != null) {
+            // Keep the button outside the toggle's touch target.
+            Box(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) { footer() }
+        }
     }
 }
