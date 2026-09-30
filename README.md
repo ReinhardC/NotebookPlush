@@ -31,7 +31,7 @@ Signed release builds check the NotebookPlush feed at `https://clausbilder.de/no
 The app and publisher share `tools/update-host.json`. GitHub CI builds, signs, and publishes releases after checks pass on pushes to `main`, using signing and hosting secrets configured from Easynews. Local polish commits use `[skip ci]` to save CI minutes; those builds are tested and deployed with the local release scripts instead. Uploads use Telekom's SFTP server `hosting.telekom.de`; downloads use the separate NotebookPlush directory on `clausbilder.de`. Verified releases are also downloadable from GitHub Releases. See [CI release and hosting setup](docs/updates.md). Debug/QA builds do not check automatically, and a release APK cannot update an installation signed with a different key.
 
 ## Open and run
-
+ 
 1. Open this folder as a project in IntelliJ IDEA (with Android and Kotlin Multiplatform support) or Android Studio.
 2. Let Gradle sync. Use JDK 17 or newer for Gradle (this machine has JDK 21).
 3. Select the `androidApp` module and an Android emulator or connected device, then Run.
