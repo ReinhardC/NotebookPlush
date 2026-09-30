@@ -53,7 +53,9 @@ class MainActivity : ComponentActivity() {
     private var wordWrap by mutableStateOf(false)
     private var showIndentGuides by mutableStateOf(true)
     private var showWhitespace by mutableStateOf(false)
-    private var closing by mutableStateOf<Document?>(null)
+    private data class TabCloseRequest(val documents: List<Document>, val keepId: Long?,
+        val onClosed: (Long) -> Unit = {})
+    private var closing by mutableStateOf<TabCloseRequest?>(null)
     private val restoreError get() = session.restoreError
     private val editors = mutableMapOf<Long, CodeEditor>()
     private var viewIntentHandled = false
@@ -101,14 +103,11 @@ class MainActivity : ComponentActivity() {
                     saveAs.launch(workspace.active.name.ifBlank { "untitled.json" })
                 },
                 onNew = { newDocument() }, onSelect = { selectDocument(it) },
-                onClose = { id ->
-                    captureEditors()
-                    val document = workspace.documents.first { it.id == id }
-                    if (document.modified) closing = document else closeDocument(id)
-                },
-                closing = closing,
-                onCancelClose = { closing = null },
-                onConfirmClose = { closing?.let { closeDocument(it.id) }; closing = null },
+                onCloseTabs = { ids, keepId, onClosed -> requestCloseTabs(ids, keepId, onClosed) },
+                onRename = { id, name -> renameDocument(id, name) },
+                closing = closing?.documents,
+                onCancelClose = { cancelCloseTabs() },
+                onConfirmClose = { confirmCloseTabs() },
                 editor = { modifier, dark ->
                     key(workspace.activeId) {
                         AndroidView(
@@ -238,9 +237,37 @@ class MainActivity : ComponentActivity() {
     }
 
     internal fun closeDocument(id: Long) {
-        editors.remove(id)?.release()
-        change(workspace.close(id))
+        closeTabs(TabCloseRequest(workspace.documents.filter { it.id == id }, null))
+    }
+
+    internal fun requestCloseTabs(ids: Set<Long>, keepId: Long? = null, onClosed: (Long) -> Unit = {}) {
+        captureEditors()
+        val request = TabCloseRequest(workspace.documents.filter { it.id in ids }, keepId, onClosed)
+        if (request.documents.any { it.modified }) closing = request else closeTabs(request)
+    }
+
+    internal fun cancelCloseTabs() { closing = null }
+
+    internal fun confirmCloseTabs() {
+        closing?.let { closeTabs(it) }
+        closing = null
+    }
+
+    private fun closeTabs(request: TabCloseRequest) {
+        captureEditors()
+        val ids = request.documents.map { it.id }.toSet()
+        ids.forEach { editors.remove(it)?.release() }
+        change(workspace.close(ids, request.keepId))
         refreshEditorState()
+        request.onClosed(workspace.activeId)
+    }
+
+    internal fun renameDocument(id: Long, name: String) {
+        val filename = name.trim()
+        if (filename.isEmpty() || filename.any { it == '/' || it == '\\' || it.isISOControl() }) return
+        captureEditors()
+        change(workspace.update(id) { it.copy(name = filename) })
+        applyLanguage(id)
     }
 
     private fun applyLanguage(id: Long) {

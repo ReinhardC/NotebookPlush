@@ -15,6 +15,11 @@ internal object EditorIcons {
             path(fill = null, stroke = SolidColor(Color.White), strokeLineWidth = 1.8f, pathBuilder = draw)
         }.build()
     val Close = icon("Close") { moveTo(6f, 6f); lineTo(18f, 18f); moveTo(18f, 6f); lineTo(6f, 18f) }
+    val Rename = icon("Rename") {
+        moveTo(4f, 16f); lineTo(4f, 20f); lineTo(8f, 20f); lineTo(21f, 7f)
+        lineTo(17f, 3f); close()
+        moveTo(14f, 6f); lineTo(18f, 10f)
+    }
     val Settings = icon("Settings") {
         repeat(32) { step ->
             val angle = step * PI / 16

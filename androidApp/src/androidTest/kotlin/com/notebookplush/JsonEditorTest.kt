@@ -17,6 +17,7 @@ import androidx.test.runner.lifecycle.Stage
 import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModelProvider
 import com.notebookplush.model.Workspace
+import com.notebookplush.model.Document
 import com.notebookplush.storage.WorkspaceStore
 import com.notebookplush.storage.WorkspaceSession
 import java.io.File
@@ -164,6 +165,82 @@ class JsonEditorTest {
         scenario!!.onActivity { it.closeDocument(2) }
         awaitEditor("")
         awaitWorkspace { it.documents.size == 1 && it.active.text.isEmpty() }
+    }
+
+    @Test
+    fun renamingUpdatesLanguageWithoutLosingTextUndoCursorOrSourceFile() {
+        val source = "content://example/original.json"
+        WorkspaceStore(context).save(Workspace(listOf(Document(1, "original.json", sample, source, sample))))
+        scenario = ActivityScenario.launch(MainActivity::class.java)
+        awaitEditor(sample)
+        scenario!!.onActivity { activity ->
+            val editor = findEditor(activity.window.decorView)!!
+            editor.setSelection(0, sample.length)
+            editor.insertText(" ", 1)
+            activity.renameDocument(1, "  notes.txt  ")
+            assertSame(editor, findEditor(activity.window.decorView))
+            assertTrue(editor.editorLanguage is EmptyLanguage)
+            assertEquals(sample + " ", editor.text.toString())
+            assertEquals(sample.length + 1, editor.cursor.leftColumn)
+            editor.undo()
+            assertEquals(sample, editor.text.toString())
+            editor.redo()
+            activity.renameDocument(1, "renamed.settings.json")
+            assertTrue(editor.editorLanguage is TextMateLanguage)
+            for (invalid in listOf(" ", "path/file.json", "path\\file.json", "name\n.json")) activity.renameDocument(1, invalid)
+            val document = ViewModelProvider(activity)[WorkspaceSession::class.java].workspace.active
+            assertEquals("renamed.settings.json", document.name)
+            assertEquals(source, document.sourceUri)
+            assertEquals(sample, document.savedText)
+            assertEquals(sample + " ", document.text)
+        }
+        scenario!!.recreate()
+        awaitEditor(sample + " ")
+        awaitWorkspace { it.active.name == "renamed.settings.json" && it.active.sourceUri == source }
+    }
+
+    @Test
+    fun bulkClosingConfirmsBeforeRemovingAnyDraftAndKeepsTheHeldTab() {
+        scenario = ActivityScenario.launch(MainActivity::class.java)
+        awaitEditor(sample)
+        scenario!!.onActivity { it.newDocument() }
+        awaitEditor("")
+        scenario!!.onActivity {
+            val editor = findEditor(it.window.decorView)!!
+            editor.insertText("second", 6)
+            editor.setSelection(0, 3)
+            it.newDocument()
+        }
+        awaitEditor("")
+        var closedActiveId: Long? = null
+        scenario!!.onActivity { activity ->
+            val session = ViewModelProvider(activity)[WorkspaceSession::class.java]
+            activity.requestCloseTabs(setOf(1, 3), keepId = 2) { closedActiveId = it }
+            assertEquals(listOf(1L, 2L, 3L), session.workspace.documents.map { it.id })
+            assertNull(closedActiveId)
+            activity.cancelCloseTabs()
+            assertEquals(listOf(1L, 2L, 3L), session.workspace.documents.map { it.id })
+            activity.requestCloseTabs(setOf(1, 3), keepId = 2) { closedActiveId = it }
+            activity.confirmCloseTabs()
+            assertEquals(listOf(2L), session.workspace.documents.map { it.id })
+            assertEquals(2L, closedActiveId)
+        }
+        awaitEditor("second")
+        scenario!!.onActivity { activity ->
+            val editor = findEditor(activity.window.decorView)!!
+            assertEquals(3, editor.cursor.leftColumn)
+            assertTrue(editor.canUndo())
+            editor.undo()
+            assertEquals("", editor.text.toString())
+            editor.redo()
+            activity.requestCloseTabs(setOf(2))
+            assertEquals("second", ViewModelProvider(activity)[WorkspaceSession::class.java].workspace.active.text)
+            activity.confirmCloseTabs()
+        }
+        awaitEditor("")
+        scenario!!.recreate()
+        awaitEditor("")
+        awaitWorkspace { it.documents.size == 1 && it.activeId == 3L && it.active.text.isEmpty() }
     }
 
     @Test

@@ -3,6 +3,7 @@ package com.notebookplush
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
@@ -25,11 +26,17 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -38,6 +45,8 @@ import com.notebookplush.model.Workspace
 import com.notebookplush.resources.Res
 import com.notebookplush.resources.plush_notebook
 import com.notebookplush.ui.EditorIcons
+import com.notebookplush.ui.CloseAllTabsIcon
+import com.notebookplush.ui.CloseOtherTabsIcon
 import org.jetbrains.compose.resources.painterResource
 
 // Match Easynews's BarChrome: 70% chrome, with 30% of the scrolling text showing through.
@@ -58,12 +67,13 @@ fun App(
     onSaveAs: () -> Unit,
     onNew: () -> Unit,
     onSelect: (Long) -> Unit,
-    onClose: (Long) -> Unit,
+    onCloseTabs: (Set<Long>, Long?, (Long) -> Unit) -> Unit,
+    onRename: (Long, String) -> Unit,
     showIndentGuides: Boolean,
     showWhitespace: Boolean,
     onIndentGuidesChanged: (Boolean) -> Unit,
     onWhitespaceChanged: (Boolean) -> Unit,
-    closing: Document? = null,
+    closing: List<Document>? = null,
     onCancelClose: () -> Unit = {},
     onConfirmClose: () -> Unit = {},
     editor: @Composable (Modifier, Boolean) -> Unit,
@@ -83,6 +93,7 @@ fun App(
         var settingsOpen by rememberSaveable { mutableStateOf(false) }
         var showingSettings by rememberSaveable { mutableStateOf(false) }
         var lastDocumentId by rememberSaveable { mutableStateOf(workspace.activeId) }
+        var renamingId by rememberSaveable { mutableStateOf<Long?>(null) }
         LaunchedEffect(workspace.activeId) {
             if (lastDocumentId != workspace.activeId) showingSettings = false
             lastDocumentId = workspace.activeId
@@ -96,10 +107,27 @@ fun App(
                 else editor(Modifier.fillMaxSize(), dark)
                 FileBar(workspace,
                     onNew = { showingSettings = false; onNew() },
-                    onSelect = { showingSettings = false; onSelect(it) }, onClose = onClose,
+                    onSelect = { showingSettings = false; onSelect(it) },
+                    onClose = { id -> onCloseTabs(setOf(id), null) { lastDocumentId = it } },
+                    onCloseAll = {
+                        onCloseTabs(workspace.documents.map { it.id }.toSet(), null) {
+                            lastDocumentId = it; settingsOpen = false; showingSettings = false
+                        }
+                    },
+                    onCloseOthers = { keepId ->
+                        onCloseTabs(workspace.documents.filterNot { it.id == keepId }.map { it.id }.toSet(), keepId) {
+                            lastDocumentId = it; settingsOpen = false; showingSettings = false
+                        }
+                    },
+                    onRename = { renamingId = it },
                     settingsOpen = settingsOpen, showingSettings = showingSettings,
                     onSettings = { showingSettings = true },
-                    onCloseSettings = { settingsOpen = false; showingSettings = false })
+                    onCloseSettings = { settingsOpen = false; showingSettings = false },
+                    onCloseOtherForSettings = {
+                        onCloseTabs(workspace.documents.map { it.id }.toSet(), null) {
+                            lastDocumentId = it; showingSettings = true
+                        }
+                    })
                 BoxWithConstraints(
                     Modifier.align(Alignment.BottomStart).fillMaxWidth().height(46.dp)
                         .background(toolbarColor())
@@ -131,11 +159,18 @@ fun App(
         }
         if (closing != null) AlertDialog(
             onDismissRequest = onCancelClose,
-            title = { Text("Close ${closing.name.ifBlank { "untitled.json" }}?") },
-            text = { Text("This file has changes that have not been exported. Closing it removes its local draft. Use Save as to keep a file copy.") },
-            confirmButton = { TextButton(onClick = onConfirmClose) { Text("Close file") } },
+            title = { Text(if (closing.size == 1) "Close ${closing.single().name.ifBlank { "untitled.json" }}?" else "Close ${closing.size} tabs?") },
+            text = { Text(if (closing.size == 1)
+                "This file has changes that have not been exported. Closing it removes its local draft. Use Save as to keep a file copy."
+                else "${closing.count { it.modified }} of these files have changes that have not been exported. Closing the tabs removes their local drafts. Use Save as to keep file copies.") },
+            confirmButton = { TextButton(onClick = onConfirmClose) { Text(if (closing.size == 1) "Close file" else "Close tabs") } },
             dismissButton = { TextButton(onClick = onCancelClose) { Text("Keep open") } },
         )
+        workspace.documents.firstOrNull { it.id == renamingId }?.let { document ->
+            RenameDialog(document, onDismiss = { renamingId = null }, onRename = {
+                onRename(document.id, it); renamingId = null
+            })
+        }
         overlays()
     }
 }
@@ -146,10 +181,14 @@ private fun FileBar(
     onNew: () -> Unit,
     onSelect: (Long) -> Unit,
     onClose: (Long) -> Unit,
+    onCloseAll: () -> Unit,
+    onCloseOthers: (Long) -> Unit,
+    onRename: (Long) -> Unit,
     settingsOpen: Boolean,
     showingSettings: Boolean,
     onSettings: () -> Unit,
     onCloseSettings: () -> Unit,
+    onCloseOtherForSettings: () -> Unit,
 ) {
     val colors = MaterialTheme.colors
     val newTabReveal = remember { BringIntoViewRequester() }
@@ -170,7 +209,9 @@ private fun FileBar(
                         }
                         FileTab(document.name, document.modified,
                             if (document.name.endsWith(".json", true)) EditorIcons.Json else EditorIcons.File,
-                            active, { onSelect(document.id) }, { onClose(document.id) },
+                            active, { onSelect(document.id) }, { onClose(document.id) }, onCloseAll,
+                            { onCloseOthers(document.id) }, workspace.documents.size > 1 || settingsOpen,
+                            { onRename(document.id) },
                             Modifier.bringIntoViewRequester(reveal))
                     }
                 }
@@ -180,7 +221,8 @@ private fun FileBar(
                         if (showingSettings) { newTabReveal.bringIntoView(); reveal.bringIntoView() }
                     }
                     FileTab("Settings", false, EditorIcons.Settings, showingSettings, onSettings,
-                        onCloseSettings, Modifier.bringIntoViewRequester(reveal))
+                        onCloseSettings, onCloseAll, onCloseOtherForSettings, workspace.documents.isNotEmpty(),
+                        null, Modifier.bringIntoViewRequester(reveal))
                 }
                 NewFileTab(onNew, Modifier.bringIntoViewRequester(newTabReveal))
             }
@@ -204,46 +246,95 @@ private fun FileBar(
 private fun NewFileTab(onClick: () -> Unit, modifier: Modifier) {
     val colors = MaterialTheme.colors
     val shape = RoundedCornerShape(topStart = 11.dp, topEnd = 11.dp)
-    Box(modifier.width(48.dp).height(46.dp).shadow(2.dp, shape)
+    Box(modifier.width(40.dp).height(46.dp).shadow(2.dp, shape)
         .background(colors.surface.copy(alpha = .65f), shape).clip(shape)
         .clickable(role = Role.Button, onClick = onClick)
         .semantics { contentDescription = "New file" }, contentAlignment = Alignment.Center) {
-        Text("+", color = colors.onSurface.copy(alpha = .7f), fontSize = 22.sp)
+        Text("+", color = colors.onSurface.copy(alpha = .7f), fontSize = 20.sp)
     }
 }
 
 @Composable
 private fun FileTab(name: String, modified: Boolean, icon: ImageVector, active: Boolean,
-    onClick: () -> Unit, onClose: () -> Unit, modifier: Modifier) {
+    onClick: () -> Unit, onClose: () -> Unit, onCloseAll: () -> Unit,
+    onCloseOthers: () -> Unit, hasOtherTabs: Boolean, onRename: (() -> Unit)?, modifier: Modifier) {
     val colors = MaterialTheme.colors
+    var menu by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(topStart = 11.dp, topEnd = 11.dp)
     val face = if (active) colors.surface else colors.surface.copy(alpha = .65f)
-    Row(modifier.height(46.dp).widthIn(min = 104.dp, max = 208.dp).shadow(if (active) 6.dp else 2.dp, shape)
-        .background(face, shape).clip(shape).clickable(role = Role.Tab, onClick = onClick)
-        .semantics { selected = active; contentDescription = if (icon == EditorIcons.Settings) "Settings tab" else "File tab: $name" }
-        .drawBehind {
-            if (active) drawRect(colors.primary, Offset(0f, size.height - 3.dp.toPx()),
-                androidx.compose.ui.geometry.Size(size.width, 3.dp.toPx()))
-        }.padding(start = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-        Icon(icon,
-            null, tint = if (active) colors.primary else colors.onSurface.copy(alpha = .6f), modifier = Modifier.size(18.dp))
-        Spacer(Modifier.width(7.dp))
-        Text(name.ifBlank { "untitled.json" }, maxLines = 1, overflow = TextOverflow.Ellipsis,
-            color = if (active) colors.primary else colors.onSurface.copy(alpha = .7f), fontSize = 13.sp,
-            fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
-            modifier = Modifier.weight(1f, fill = false))
-        if (modified) Text(" •", color = colors.primary, fontSize = 16.sp)
-        IconButton(onClick = onClose, modifier = Modifier.size(44.dp)) {
-            Icon(EditorIcons.Close, "Close $name", Modifier.size(14.dp), tint = colors.onSurface.copy(alpha = .55f))
+    Box(modifier) {
+        Row(Modifier.height(46.dp).widthIn(min = 88.dp, max = 168.dp).shadow(if (active) 6.dp else 2.dp, shape)
+            .background(face, shape).clip(shape).combinedClickable(role = Role.Tab, onClick = onClick,
+                onLongClick = { menu = true }, onLongClickLabel = "Tab options")
+            .semantics { selected = active; contentDescription = if (icon == EditorIcons.Settings) "Settings tab" else "File tab: $name" }
+            .drawBehind {
+                if (active) drawRect(colors.primary, Offset(0f, size.height - 3.dp.toPx()),
+                    androidx.compose.ui.geometry.Size(size.width, 3.dp.toPx()))
+            }.padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon,
+                null, tint = if (active) colors.primary else colors.onSurface.copy(alpha = .6f), modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(name.ifBlank { "untitled.json" }, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                color = if (active) colors.primary else colors.onSurface.copy(alpha = .7f), fontSize = 13.sp,
+                fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
+                modifier = Modifier.weight(1f, fill = false))
+            if (modified) Text(" •", color = colors.primary, fontSize = 16.sp)
+        }
+        MaterialTheme(shapes = MaterialTheme.shapes.copy(small = RoundedCornerShape(12.dp))) {
+            DropdownMenu(expanded = menu, onDismissRequest = { menu = false },
+                modifier = Modifier.widthIn(min = 220.dp, max = 360.dp)) {
+                // Borrow Easynews's full-title band, including its bleed into the menu's 8 dp padding.
+                Row(Modifier.layout { measurable, constraints ->
+                    val bleed = 8.dp.roundToPx()
+                    val placeable = measurable.measure(constraints)
+                    layout(placeable.width, placeable.height - bleed) { placeable.place(0, -bleed) }
+                }.fillMaxWidth().background(lerp(colors.surface, Color.Black, .08f))
+                    .padding(start = 14.dp, end = 16.dp, top = 15.dp, bottom = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(9.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.width(3.dp).height(17.dp).background(colors.primary, RoundedCornerShape(2.dp)))
+                    Text(name, color = colors.onSurface, fontFamily = FontFamily.Serif, fontSize = 17.sp)
+                }
+                Divider(color = colors.onSurface.copy(alpha = .12f))
+                TabMenuItem("Close tab", EditorIcons.Close) { menu = false; onClose() }
+                TabMenuItem("Close all tabs", CloseAllTabsIcon) { menu = false; onCloseAll() }
+                TabMenuItem("Close other tabs", CloseOtherTabsIcon, enabled = hasOtherTabs) { menu = false; onCloseOthers() }
+                if (onRename != null) TabMenuItem("Rename", EditorIcons.Rename) { menu = false; onRename() }
+            }
         }
     }
+}
+
+@Composable
+private fun TabMenuItem(label: String, icon: ImageVector, enabled: Boolean = true, onClick: () -> Unit) {
+    DropdownMenuItem(onClick = onClick, enabled = enabled) {
+        Icon(icon, null, Modifier.size(18.dp))
+        Spacer(Modifier.width(12.dp))
+        Text(label, fontSize = 14.sp)
+    }
+}
+
+@Composable
+private fun RenameDialog(document: Document, onDismiss: () -> Unit, onRename: (String) -> Unit) {
+    var name by rememberSaveable(document.id, stateSaver = TextFieldValue.Saver) {
+        mutableStateOf(TextFieldValue(document.name, TextRange(0, document.name.length)))
+    }
+    val focus = remember { FocusRequester() }
+    val filename = name.text.trim()
+    val valid = filename.isNotEmpty() && filename.none { it == '/' || it == '\\' || it.isISOControl() }
+    LaunchedEffect(document.id) { focus.requestFocus() }
+    AlertDialog(onDismissRequest = onDismiss,
+        title = { Text("Rename tab") },
+        text = { OutlinedTextField(name, onValueChange = { name = it }, singleLine = true,
+            label = { Text("Filename") }, isError = !valid, modifier = Modifier.fillMaxWidth().focusRequester(focus)) },
+        confirmButton = { TextButton(onClick = { onRename(filename) }, enabled = valid) { Text("Rename") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
 }
 
 @Composable
 private fun Tool(icon: ImageVector, label: String, onClick: () -> Unit, enabled: Boolean = true, active: Boolean = false) {
     IconButton(onClick = onClick, enabled = enabled,
         modifier = Modifier.size(44.dp).semantics { selected = active }) {
-        Icon(icon, label, Modifier.size(20.dp), tint = when {
+        Icon(icon, label, Modifier.size(18.dp), tint = when {
             !enabled -> MaterialTheme.colors.onSurface.copy(alpha = .25f)
             active -> MaterialTheme.colors.primary
             else -> MaterialTheme.colors.onSurface.copy(alpha = .7f)

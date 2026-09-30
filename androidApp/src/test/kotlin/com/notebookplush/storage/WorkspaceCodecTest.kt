@@ -29,4 +29,22 @@ class WorkspaceCodecTest {
         assertThrows(IllegalArgumentException::class.java) { WorkspaceCodec.decode(source.replace("\"id\":2", "\"id\":1")) }
         assertThrows(IllegalArgumentException::class.java) { WorkspaceCodec.decode(source.replace("\"activeId\":1", "\"activeId\":7")) }
     }
+    @Test fun closingSeveralTabsKeepsTheRequestedInactiveFileAndUsesANeighborOtherwise() {
+        val files = (1L..5L).map { Document(it, text = "draft $it") }
+        val workspace = Workspace(files, 3)
+        val onlySecond = workspace.close(setOf(1, 3, 4, 5), keepId = 2)
+        assertEquals(listOf(files[1]), onlySecond.documents)
+        assertEquals(2L, onlySecond.activeId)
+        val neighbors = workspace.close(setOf(2, 3, 4))
+        assertEquals(listOf(files[0], files[4]), neighbors.documents)
+        assertEquals(5L, neighbors.activeId)
+        assertEquals(Workspace(listOf(files[0]), 1), workspace.close(setOf(2, 3, 4, 5)))
+    }
+    @Test fun closingAllFilesLeavesANewEmptyDraftAndRoundTripsIt() {
+        val workspace = Workspace(listOf(Document(4, text = "keep bytes"), Document(9, text = "other")), 4)
+        val closed = workspace.close(setOf(4, 9))
+        assertEquals(listOf(Document(10)), closed.documents)
+        assertEquals(10L, closed.activeId)
+        assertEquals(closed, WorkspaceCodec.decode(WorkspaceCodec.encode(closed)))
+    }
 }
