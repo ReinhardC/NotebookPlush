@@ -41,7 +41,6 @@ internal class UpdatesViewModel(application: Application) : AndroidViewModel(app
     private val startupCheck = StartupUpdateCheck()
     private val reminderStore = UpdateReminderStore(application)
     private var reminder = UpdateReminder()
-    private var automaticChecksEnabled = false
     private var work: Job? = null
     private val directory = File(application.cacheDir, "updates")
     private val apk = File(directory, "notebookplush-update.apk")
@@ -81,7 +80,6 @@ internal class UpdatesViewModel(application: Application) : AndroidViewModel(app
 
     fun checkAtStartup() {
         val enabled = automaticChecks.value
-        automaticChecksEnabled = enabled
         val current = mutableState.value
         if (startupCheck.shouldCheck(
                 preferencesLoaded = true,
@@ -130,7 +128,7 @@ internal class UpdatesViewModel(application: Application) : AndroidViewModel(app
         val update = client.check(BuildConfig.APPLICATION_ID, BuildConfig.VERSION_CODE.toLong())
         mutableState.update { it.copy(
             available = update,
-            dialogVisible = it.dialogVisible || (startup && update != null && automaticChecksEnabled &&
+            dialogVisible = it.dialogVisible || (startup && update != null && automaticChecks.value &&
                 reminder.mayPrompt(System.currentTimeMillis())),
             message = if (update == null) "No newer build is available for this installation."
                 else "Update available: ${update.manifest.versionName}",

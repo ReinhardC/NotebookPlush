@@ -73,11 +73,6 @@ internal fun UpdatesDialog(model: UpdatesViewModel) {
                 modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                val automatic by model.automaticChecks.collectAsStateWithLifecycle()
-                androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                    androidx.compose.material.Switch(checked = automatic, onCheckedChange = model::setAutomaticChecks)
-                    Text("Auto check for updates")
-                }
                 Text("Installed: ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.body2)
                 Text(state.message)
                 launchError?.let { Text(it, color = MaterialTheme.colors.error) }

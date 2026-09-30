@@ -24,6 +24,7 @@ import com.notebookplush.model.Workspace
 import com.notebookplush.storage.WorkspaceSession
 import com.notebookplush.update.UpdatesDialog
 import com.notebookplush.update.UpdatesViewModel
+import com.notebookplush.ui.ImmersiveSystemBars
 import io.github.rosemoe.sora.event.ContentChangeEvent
 import io.github.rosemoe.sora.event.SelectionChangeEvent
 import io.github.rosemoe.sora.lang.EmptyLanguage
@@ -53,6 +54,8 @@ class MainActivity : ComponentActivity() {
     private var wordWrap by mutableStateOf(false)
     private var showIndentGuides by mutableStateOf(true)
     private var showWhitespace by mutableStateOf(false)
+    private var fullScreen by mutableStateOf(false)
+    private var tabSize by mutableStateOf(2)
     private data class TabCloseRequest(val documents: List<Document>, val keepId: Long?,
         val onClosed: (Long) -> Unit = {})
     private var closing by mutableStateOf<TabCloseRequest?>(null)
@@ -82,20 +85,28 @@ class MainActivity : ComponentActivity() {
         wordWrap = getSharedPreferences("notebook", MODE_PRIVATE).getBoolean("wrap", false)
         showIndentGuides = getSharedPreferences("notebook", MODE_PRIVATE).getBoolean("indentGuides", true)
         showWhitespace = getSharedPreferences("notebook", MODE_PRIVATE).getBoolean("whitespace", false)
+        fullScreen = getSharedPreferences("notebook", MODE_PRIVATE).getBoolean("fullScreen", false)
+        tabSize = getSharedPreferences("notebook", MODE_PRIVATE).getInt("tabSize", 2).coerceIn(1, 8)
         JsonHighlighting.initialize(applicationContext)
         setContent {
+            // Keep full screen at the root, across file tabs, Settings, and overlays.
+            if (fullScreen) ImmersiveSystemBars(window)
+            val updateState by updates.state.collectAsState()
+            val automaticUpdates by updates.automaticChecks.collectAsState()
             App(
                 workspace = workspace, saveStatus = saveStatus, position = position,
                 canUndo = canUndo, canRedo = canRedo, wordWrap = wordWrap,
                 showIndentGuides = showIndentGuides, showWhitespace = showWhitespace,
                 onIndentGuidesChanged = { setDisplaySettings(it, showWhitespace) },
                 onWhitespaceChanged = { setDisplaySettings(showIndentGuides, it) },
+                fullScreen = fullScreen, onFullScreenChanged = { setFullScreen(it) },
+                tabSize = tabSize, onTabSizeChanged = { setTabSize(it) },
+                automaticUpdates = automaticUpdates, onAutomaticUpdatesChanged = { updates.setAutomaticChecks(it) },
+                updateCheckReady = updateState.initialized && !updateState.busy,
+                onCheckUpdates = { updates.check() },
                 onUndo = { activeEditor()?.undo(); refreshEditorState() },
                 onRedo = { activeEditor()?.redo(); refreshEditorState() },
-                onWrapChanged = {
-                    wordWrap = !wordWrap
-                    getSharedPreferences("notebook", MODE_PRIVATE).edit().putBoolean("wrap", wordWrap).apply()
-                },
+                onWrapChanged = { setWordWrap(!wordWrap) },
                 onOpen = { openFile.launch(arrayOf("application/json", "text/*", "application/octet-stream")) },
                 onSaveAs = {
                     captureEditors()
@@ -119,7 +130,6 @@ class MainActivity : ComponentActivity() {
                                         contentDescription = "Code editor"
                                         typefaceText = Typeface.MONOSPACE
                                         setTextSize(16f)
-                                        tabWidth = 2
                                         isLineNumberEnabled = true
                                         applyDisplaySettings(this)
                                         setWordwrap(wordWrap)
@@ -153,8 +163,7 @@ class MainActivity : ComponentActivity() {
                     ) }
                 },
             )
-            val updateState by updates.state.collectAsState()
-            LaunchedEffect(updateState.initialized, updateState.busy) { updates.checkAtStartup() }
+            LaunchedEffect(updateState.initialized, updateState.busy, automaticUpdates) { updates.checkAtStartup() }
         }
         if (!viewIntentHandled) openViewIntent(intent)
     }
@@ -183,6 +192,23 @@ class MainActivity : ComponentActivity() {
 
     private fun activeEditor(): CodeEditor? = editors[workspace.activeId]
 
+    internal fun setFullScreen(enabled: Boolean) {
+        fullScreen = enabled
+        getSharedPreferences("notebook", MODE_PRIVATE).edit().putBoolean("fullScreen", enabled).apply()
+    }
+
+    internal fun setTabSize(size: Int) {
+        tabSize = size.coerceIn(1, 8)
+        getSharedPreferences("notebook", MODE_PRIVATE).edit().putInt("tabSize", tabSize).apply()
+        editors.values.forEach { applyDisplaySettings(it) }
+    }
+
+    internal fun setWordWrap(enabled: Boolean) {
+        wordWrap = enabled
+        getSharedPreferences("notebook", MODE_PRIVATE).edit().putBoolean("wrap", enabled).apply()
+        activeEditor()?.setWordwrap(enabled)
+    }
+
     internal fun setDisplaySettings(indentGuides: Boolean, whitespace: Boolean) {
         showIndentGuides = indentGuides
         showWhitespace = whitespace
@@ -192,6 +218,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun applyDisplaySettings(editor: CodeEditor) {
+        if (editor.tabWidth != tabSize) editor.tabWidth = tabSize
         if (editor.isBlockLineEnabled != showIndentGuides) editor.isBlockLineEnabled = showIndentGuides
         val flags = if (showWhitespace) {
             CodeEditor.FLAG_DRAW_WHITESPACE_LEADING or CodeEditor.FLAG_DRAW_WHITESPACE_INNER or

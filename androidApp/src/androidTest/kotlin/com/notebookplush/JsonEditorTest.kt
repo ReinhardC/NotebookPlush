@@ -9,6 +9,8 @@ import android.graphics.Canvas
 import android.os.Build
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowInsetsController
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -20,6 +22,7 @@ import com.notebookplush.model.Workspace
 import com.notebookplush.model.Document
 import com.notebookplush.storage.WorkspaceStore
 import com.notebookplush.storage.WorkspaceSession
+import com.notebookplush.storage.WorkspaceCodec
 import java.io.File
 import io.github.rosemoe.sora.lang.styling.TextStyle
 import io.github.rosemoe.sora.widget.CodeEditor
@@ -400,7 +403,7 @@ class JsonEditorTest {
         scenario!!.recreate()
         awaitEditor(document)
         for (wrap in listOf(false, true)) {
-            scenario!!.onActivity { findEditor(it.window.decorView)!!.setWordwrap(wrap) }
+            scenario!!.onActivity { it.setWordWrap(wrap) }
             val deadline = System.currentTimeMillis() + 8000
             var ready = false
             while (System.currentTimeMillis() < deadline && !ready) {
@@ -435,6 +438,122 @@ class JsonEditorTest {
             assertTrue(editor.isBlockLineEnabled)
             assertEquals(0, editor.nonPrintablePaintingFlags)
             assertEquals(document, editor.text.toString())
+        }
+    }
+
+    @Test
+    fun tabSizeUpdatesMeasuredWidthsAndWrappedRowsWithoutChangingDrafts() {
+        scenario = ActivityScenario.launch(MainActivity::class.java)
+        awaitEditor(sample)
+        val original = "\tA\n${"\t".repeat(100)}B\n"
+        val edited = original.replace("A", "AX")
+        scenario!!.onActivity {
+            val editor = findEditor(it.window.decorView)!!
+            assertEquals(2, editor.tabWidth)
+            editor.setText(original)
+            editor.setSelection(0, 2)
+            editor.insertText("X", 1)
+            editor.setSelection(0, 1)
+        }
+        for (wrap in listOf(false, true)) {
+            scenario!!.onActivity { it.setWordWrap(wrap) }
+            var narrowRows = 0
+            for (size in listOf(1, 4, 8)) {
+                scenario!!.onActivity { it.setTabSize(size) }
+                awaitEditor(edited)
+                scenario!!.onActivity {
+                    val editor = findEditor(it.window.decorView)!!
+                    assertEquals(size, editor.tabWidth)
+                    val begin = editor.layout.getCharLayoutOffset(0, 0)[1]
+                    val end = editor.layout.getCharLayoutOffset(0, 1)[1]
+                    assertEquals("Tab geometry updates (wrap=$wrap, size=$size)",
+                        editor.textPaint.spaceWidth * size, end - begin, .5f)
+                    assertEquals(1, editor.cursor.leftColumn)
+                    assertTrue(editor.canUndo())
+                    if (size == 1) narrowRows = editor.layout.rowCount
+                    if (wrap && size == 8) assertTrue("Wider tabs must recompute wrapped rows", editor.layout.rowCount > narrowRows)
+                }
+            }
+        }
+        scenario!!.onActivity { it.newDocument() }
+        awaitEditor("")
+        scenario!!.onActivity {
+            assertEquals(8, findEditor(it.window.decorView)!!.tabWidth)
+            it.selectDocument(1)
+        }
+        awaitEditor(edited)
+        scenario!!.onActivity {
+            val editor = findEditor(it.window.decorView)!!
+            editor.undo()
+            assertEquals(original, editor.text.toString())
+            editor.redo()
+            editor.setSelection(0, 1)
+        }
+        scenario!!.recreate()
+        awaitEditor(edited)
+        scenario!!.onActivity {
+            val editor = findEditor(it.window.decorView)!!
+            assertEquals(8, editor.tabWidth)
+            assertEquals(1, editor.cursor.leftColumn)
+        }
+    }
+
+    @Test
+    fun fullScreenSurvivesRecreationAndRestoresSystemBarBehaviorWhenDisabled() {
+        scenario = ActivityScenario.launch(MainActivity::class.java)
+        awaitEditor(sample)
+        var previousBehavior = 0
+        var previousCaption = 0
+        var sameEditor: CodeEditor? = null
+        val edited = sample + " "
+        scenario!!.onActivity {
+            assertFalse(preferences.getBoolean("fullScreen", false))
+            val view = it.window.decorView
+            previousBehavior = WindowInsetsControllerCompat(it.window, view).systemBarsBehavior
+            if (Build.VERSION.SDK_INT >= 35) previousCaption =
+                (it.window.insetsController?.systemBarsAppearance ?: 0) and
+                    WindowInsetsController.APPEARANCE_TRANSPARENT_CAPTION_BAR_BACKGROUND
+            val editor = findEditor(view)!!
+            sameEditor = editor
+            editor.setSelection(0, sample.length)
+            editor.insertText(" ", 1)
+            it.setFullScreen(true)
+        }
+        fun awaitBars(enabled: Boolean) {
+            val deadline = System.currentTimeMillis() + 8000
+            while (System.currentTimeMillis() < deadline) {
+                var ready = false
+                scenario!!.onActivity {
+                    val behavior = WindowInsetsControllerCompat(it.window, it.window.decorView).systemBarsBehavior
+                    val expected = if (enabled) WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE else previousBehavior
+                    val caption = if (Build.VERSION.SDK_INT >= 35)
+                        (it.window.insetsController?.systemBarsAppearance ?: 0) and
+                            WindowInsetsController.APPEARANCE_TRANSPARENT_CAPTION_BAR_BACKGROUND else 0
+                    val expectedCaption = if (enabled && Build.VERSION.SDK_INT >= 35)
+                        WindowInsetsController.APPEARANCE_TRANSPARENT_CAPTION_BAR_BACKGROUND else previousCaption
+                    ready = (Build.VERSION.SDK_INT < 30 || behavior == expected) && caption == expectedCaption
+                }
+                if (ready) return
+                Thread.sleep(50)
+            }
+            fail("System bar behavior did not switch (full screen=$enabled)")
+        }
+        awaitBars(true)
+        scenario!!.onActivity {
+            assertTrue(preferences.getBoolean("fullScreen", false))
+            val editor = findEditor(it.window.decorView)!!
+            assertSame(sameEditor, editor)
+            assertEquals(edited, editor.text.toString())
+            assertTrue(editor.canUndo())
+        }
+        scenario!!.recreate()
+        awaitEditor(edited)
+        awaitBars(true)
+        scenario!!.onActivity { it.setFullScreen(false) }
+        awaitBars(false)
+        scenario!!.onActivity {
+            assertFalse(preferences.getBoolean("fullScreen", true))
+            assertEquals(edited, findEditor(it.window.decorView)!!.text.toString())
         }
     }
 
@@ -493,12 +612,15 @@ class JsonEditorTest {
     }
 
     private fun awaitWorkspace(predicate: (Workspace) -> Boolean) {
+        // AtomicFile.openRead() deletes .new; polling it during an autosave can discard that write.
+        // Observe the atomically published base file without invoking recovery or mutating storage.
+        val file = File(context.filesDir, "workspace.json")
         val deadline = System.currentTimeMillis() + 8000
         while (System.currentTimeMillis() < deadline) {
-            if (runCatching { predicate(WorkspaceStore(context).load()) }.getOrDefault(false)) return
+            if (runCatching { predicate(WorkspaceCodec.decode(file.readText(Charsets.UTF_8))) }.getOrDefault(false)) return
             Thread.sleep(50)
         }
-        fail("Workspace was not saved: ${WorkspaceStore(context).load()}")
+        fail("Workspace was not saved: ${runCatching { file.readText(Charsets.UTF_8) }.getOrNull()}")
     }
 
     private fun awaitEditor(text: String) {

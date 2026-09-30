@@ -73,6 +73,14 @@ fun App(
     showWhitespace: Boolean,
     onIndentGuidesChanged: (Boolean) -> Unit,
     onWhitespaceChanged: (Boolean) -> Unit,
+    fullScreen: Boolean,
+    onFullScreenChanged: (Boolean) -> Unit,
+    tabSize: Int,
+    onTabSizeChanged: (Int) -> Unit,
+    automaticUpdates: Boolean,
+    onAutomaticUpdatesChanged: (Boolean) -> Unit,
+    updateCheckReady: Boolean,
+    onCheckUpdates: () -> Unit,
     closing: List<Document>? = null,
     onCancelClose: () -> Unit = {},
     onConfirmClose: () -> Unit = {},
@@ -103,7 +111,9 @@ fun App(
             Box(Modifier.fillMaxSize().safeDrawingPadding().imePadding()) {
                 // Draw chrome over the full editor viewport so text scrolls beneath both bars.
                 if (showingSettings) EditorSettings(showIndentGuides, showWhitespace,
-                    onIndentGuidesChanged, onWhitespaceChanged)
+                    onIndentGuidesChanged, onWhitespaceChanged, fullScreen, onFullScreenChanged,
+                    tabSize, onTabSizeChanged, automaticUpdates, onAutomaticUpdatesChanged,
+                    updateCheckReady, onCheckUpdates)
                 else editor(Modifier.fillMaxSize(), dark)
                 FileBar(workspace,
                     onNew = { showingSettings = false; onNew() },
@@ -350,27 +360,63 @@ private fun toolbarColor(): Color {
 
 @Composable
 private fun EditorSettings(indentGuides: Boolean, whitespace: Boolean,
-    onIndentGuidesChanged: (Boolean) -> Unit, onWhitespaceChanged: (Boolean) -> Unit) {
+    onIndentGuidesChanged: (Boolean) -> Unit, onWhitespaceChanged: (Boolean) -> Unit,
+    fullScreen: Boolean, onFullScreenChanged: (Boolean) -> Unit,
+    tabSize: Int, onTabSizeChanged: (Int) -> Unit,
+    automaticUpdates: Boolean, onAutomaticUpdatesChanged: (Boolean) -> Unit,
+    updateCheckReady: Boolean, onCheckUpdates: () -> Unit) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())
         .padding(start = 24.dp, end = 24.dp, top = 88.dp, bottom = 88.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
         SettingToggle("Indent guides", "Show guides along nested JSON blocks", indentGuides, onIndentGuidesChanged)
         SettingToggle("Show whitespace", "Mark spaces, tabs, and line endings", whitespace, onWhitespaceChanged)
+        TabSizeSetting(tabSize, onTabSizeChanged)
+        SettingToggle("Full screen", "Hide system bars; swipe from an edge to show them briefly", fullScreen, onFullScreenChanged)
+        SettingToggle("Auto check for updates", "Check once at startup; Later pauses reminders for a week",
+            automaticUpdates, onAutomaticUpdatesChanged)
+        OutlinedButton(onClick = onCheckUpdates, enabled = updateCheckReady) { Text("Check now") }
     }
 }
 
 @Composable
 private fun SettingToggle(title: String, description: String, checked: Boolean, onChanged: (Boolean) -> Unit) {
+    SettingRow(title, description, Modifier.toggleable(value = checked, role = Role.Switch, onValueChange = onChanged)) {
+        Switch(checked, onCheckedChange = null,
+            colors = SwitchDefaults.colors(checkedThumbColor = MaterialTheme.colors.primary))
+    }
+}
+
+@Composable
+private fun TabSizeSetting(tabSize: Int, onChanged: (Int) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    SettingRow("Tab size", "Width of tab characters and indentation steps") {
+        Box {
+            OutlinedButton(onClick = { expanded = true }, modifier = Modifier.semantics { contentDescription = "Tab size" }) {
+                Text("$tabSize ${if (tabSize == 1) "space" else "spaces"}")
+            }
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                (1..8).forEach { size ->
+                    DropdownMenuItem(onClick = { expanded = false; onChanged(size) }) {
+                        Text("$size ${if (size == 1) "space" else "spaces"}")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingRow(title: String, description: String, interaction: Modifier = Modifier,
+    content: @Composable () -> Unit) {
     Row(Modifier.widthIn(max = 560.dp).fillMaxWidth().clip(RoundedCornerShape(12.dp))
         .background(MaterialTheme.colors.surface)
-        .toggleable(value = checked, role = Role.Switch, onValueChange = onChanged).padding(16.dp),
+        .then(interaction).padding(16.dp),
         verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(title, color = MaterialTheme.colors.onSurface, fontSize = 15.sp)
             Text(description, color = MaterialTheme.colors.onSurface.copy(alpha = .6f), fontSize = 12.sp)
         }
         Spacer(Modifier.width(16.dp))
-        Switch(checked, onCheckedChange = null,
-            colors = SwitchDefaults.colors(checkedThumbColor = MaterialTheme.colors.primary))
+        content()
     }
 }

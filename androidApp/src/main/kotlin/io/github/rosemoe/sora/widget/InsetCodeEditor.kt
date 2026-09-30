@@ -35,6 +35,13 @@ internal class InsetCodeEditor(context: Context) : CodeEditor(context) {
         layout = InsetLayout(layout, documentInset)
     }
 
+    override fun setTabWidth(width: Int) {
+        if (width == tabWidth) return
+        super.setTabWidth(width)
+        // Sora 0.24.6 invalidates painting but leaves measured widths and wrap rows cached.
+        if (layout != null) createLayout(true)
+    }
+
     override fun setLayoutBusy(busy: Boolean) {
         val insetLayout = layout as? InsetLayout
         if (!busy && isWordwrap && insetLayout != null && eventHandler.positionNotApplied) {
