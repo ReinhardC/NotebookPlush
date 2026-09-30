@@ -36,6 +36,9 @@ import com.notebookplush.resources.plush_notebook
 import com.notebookplush.ui.EditorIcons
 import org.jetbrains.compose.resources.painterResource
 
+// Match Easynews's BarChrome: 70% chrome, with 30% of the scrolling text showing through.
+private const val ToolbarOpacity = .7f
+
 @Composable
 fun App(
     workspace: Workspace,
@@ -77,7 +80,7 @@ fun App(
                 FileBar(workspace, onNew, onSelect, onClose)
                 Row(
                     Modifier.align(Alignment.BottomStart).fillMaxWidth().height(46.dp)
-                        .background(colors.surface.copy(alpha = .5f))
+                        .background(colors.surface.copy(alpha = ToolbarOpacity))
                         .padding(horizontal = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -116,7 +119,7 @@ private fun FileBar(
     val colors = MaterialTheme.colors
     val newTabReveal = remember { BringIntoViewRequester() }
     // The mark deliberately overflows this slim strip onto the text below it.
-    Box(Modifier.fillMaxWidth().height(52.dp).background(colors.surface.copy(alpha = .5f))) {
+    Box(Modifier.fillMaxWidth().height(52.dp).background(colors.surface.copy(alpha = ToolbarOpacity))) {
         Row(Modifier.fillMaxSize().padding(start = 90.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Row(Modifier.weight(1f).fillMaxHeight().horizontalScroll(rememberScrollState()),
                 verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
