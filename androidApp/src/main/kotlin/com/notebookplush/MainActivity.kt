@@ -51,6 +51,8 @@ class MainActivity : ComponentActivity() {
     private var canUndo by mutableStateOf(false)
     private var canRedo by mutableStateOf(false)
     private var wordWrap by mutableStateOf(false)
+    private var showIndentGuides by mutableStateOf(true)
+    private var showWhitespace by mutableStateOf(false)
     private var closing by mutableStateOf<Document?>(null)
     private val restoreError get() = session.restoreError
     private val editors = mutableMapOf<Long, CodeEditor>()
@@ -76,11 +78,16 @@ class MainActivity : ComponentActivity() {
         viewIntentHandled = savedInstanceState?.getBoolean("viewIntentHandled") ?: false
         enableEdgeToEdge()
         wordWrap = getSharedPreferences("notebook", MODE_PRIVATE).getBoolean("wrap", false)
+        showIndentGuides = getSharedPreferences("notebook", MODE_PRIVATE).getBoolean("indentGuides", true)
+        showWhitespace = getSharedPreferences("notebook", MODE_PRIVATE).getBoolean("whitespace", false)
         JsonHighlighting.initialize(applicationContext)
         setContent {
             App(
                 workspace = workspace, saveStatus = saveStatus, position = position,
                 canUndo = canUndo, canRedo = canRedo, wordWrap = wordWrap,
+                showIndentGuides = showIndentGuides, showWhitespace = showWhitespace,
+                onIndentGuidesChanged = { setDisplaySettings(it, showWhitespace) },
+                onWhitespaceChanged = { setDisplaySettings(showIndentGuides, it) },
                 onUndo = { activeEditor()?.undo(); refreshEditorState() },
                 onRedo = { activeEditor()?.redo(); refreshEditorState() },
                 onWrapChanged = {
@@ -115,6 +122,7 @@ class MainActivity : ComponentActivity() {
                                         setTextSize(16f)
                                         tabWidth = 2
                                         isLineNumberEnabled = true
+                                        applyDisplaySettings(this)
                                         setWordwrap(wordWrap)
                                         JsonHighlighting.applyTheme(this, dark)
                                         setEditorLanguage(if (document.name.endsWith(".json", true)) TextMateLanguage.create("source.json", false) else EmptyLanguage())
@@ -130,6 +138,7 @@ class MainActivity : ComponentActivity() {
                                 }
                             },
                             update = { view ->
+                                applyDisplaySettings(view)
                                 view.setWordwrap(wordWrap)
                                 if (view.tag != dark) JsonHighlighting.applyTheme(view, dark)
                                 view.post { refreshEditorState() }
@@ -174,6 +183,24 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun activeEditor(): CodeEditor? = editors[workspace.activeId]
+
+    internal fun setDisplaySettings(indentGuides: Boolean, whitespace: Boolean) {
+        showIndentGuides = indentGuides
+        showWhitespace = whitespace
+        getSharedPreferences("notebook", MODE_PRIVATE).edit()
+            .putBoolean("indentGuides", indentGuides).putBoolean("whitespace", whitespace).apply()
+        editors.values.forEach { applyDisplaySettings(it) }
+    }
+
+    private fun applyDisplaySettings(editor: CodeEditor) {
+        if (editor.isBlockLineEnabled != showIndentGuides) editor.isBlockLineEnabled = showIndentGuides
+        val flags = if (showWhitespace) {
+            CodeEditor.FLAG_DRAW_WHITESPACE_LEADING or CodeEditor.FLAG_DRAW_WHITESPACE_INNER or
+                CodeEditor.FLAG_DRAW_WHITESPACE_TRAILING or CodeEditor.FLAG_DRAW_WHITESPACE_FOR_EMPTY_LINE or
+                CodeEditor.FLAG_DRAW_LINE_SEPARATOR
+        } else 0
+        if (editor.nonPrintablePaintingFlags != flags) editor.nonPrintablePaintingFlags = flags
+    }
 
     private fun refreshEditorState() {
         val editor = activeEditor()

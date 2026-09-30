@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.os.Build
 import android.view.View
 import android.view.ViewGroup
@@ -23,6 +25,7 @@ import io.github.rosemoe.sora.widget.CodeEditor
 import io.github.rosemoe.sora.lang.EmptyLanguage
 import io.github.rosemoe.sora.langs.textmate.TextMateLanguage
 import io.github.rosemoe.sora.util.IntPair
+import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -294,6 +297,71 @@ class JsonEditorTest {
     }
 
     @Test
+    fun displaySettingsPersistAcrossTabsAndRotationWithoutChangingText() {
+        scenario = ActivityScenario.launch(MainActivity::class.java)
+        awaitEditor(sample)
+        val document = "    A\n\tB\n     \n"
+        scenario!!.onActivity {
+            val editor = findEditor(it.window.decorView)!!
+            editor.setText(document)
+            editor.setSelection(0, 2)
+            it.setDisplaySettings(false, true)
+            assertFalse(editor.isBlockLineEnabled)
+            assertTrue(editor.nonPrintablePaintingFlags and CodeEditor.FLAG_DRAW_LINE_SEPARATOR != 0)
+            assertEquals(document, editor.text.toString())
+            assertEquals(2, editor.cursor.leftColumn)
+            it.newDocument()
+        }
+        awaitEditor("")
+        scenario!!.onActivity {
+            val editor = findEditor(it.window.decorView)!!
+            assertFalse(editor.isBlockLineEnabled)
+            assertTrue(editor.nonPrintablePaintingFlags and CodeEditor.FLAG_DRAW_WHITESPACE_LEADING != 0)
+            it.selectDocument(1)
+        }
+        awaitEditor(document)
+        scenario!!.recreate()
+        awaitEditor(document)
+        for (wrap in listOf(false, true)) {
+            scenario!!.onActivity { findEditor(it.window.decorView)!!.setWordwrap(wrap) }
+            val deadline = System.currentTimeMillis() + 8000
+            var ready = false
+            while (System.currentTimeMillis() < deadline && !ready) {
+                scenario!!.onActivity { ready = findEditor(it.window.decorView)!!.isEditable() }
+                if (!ready) Thread.sleep(50)
+            }
+            assertTrue(ready)
+            scenario!!.onActivity {
+                val editor = findEditor(it.window.decorView)!!
+                assertFalse(editor.isBlockLineEnabled)
+                // Use an opaque test color so alpha blending/antialiasing cannot mask placement.
+                val markerColor = 0xFFFF00FF.toInt()
+                editor.colorScheme.setColor(EditorColorScheme.NON_PRINTABLE_CHAR, markerColor)
+                val bitmap = Bitmap.createBitmap(editor.width, editor.height, Bitmap.Config.ARGB_8888)
+                try {
+                    editor.draw(Canvas(bitmap))
+                    val from = editor.layout.getCharLayoutOffset(0, 0)[1]
+                    val to = editor.layout.getCharLayoutOffset(0, 1)[1]
+                    val x = (editor.measureTextRegionOffset() + (from + to) / 2 - editor.offsetX).toInt()
+                    val y = (editor.getRowTopOfText(0) + editor.rowHeightOfText / 2f - editor.offsetY).toInt()
+                    assertEquals("Whitespace dots align with the first row (wrap=$wrap)",
+                        markerColor, bitmap.getPixel(x, y))
+                } finally { bitmap.recycle() }
+                assertEquals(document, editor.text.toString())
+            }
+        }
+        scenario!!.onActivity { it.setDisplaySettings(true, false) }
+        scenario!!.recreate()
+        awaitEditor(document)
+        scenario!!.onActivity {
+            val editor = findEditor(it.window.decorView)!!
+            assertTrue(editor.isBlockLineEnabled)
+            assertEquals(0, editor.nonPrintablePaintingFlags)
+            assertEquals(document, editor.text.toString())
+        }
+    }
+
+    @Test
     fun scrollingMarginsPreserveTextAndTouchCoordinatesWithAndWithoutWrapping() {
         scenario = ActivityScenario.launch(MainActivity::class.java)
         awaitEditor(sample)
@@ -362,9 +430,13 @@ class JsonEditorTest {
             var found = false
             val activityScenario = scenario
             if (activityScenario != null) activityScenario.onActivity { activity ->
-                found = findEditor(activity.window.decorView)?.text.toString() == text
+                found = findEditor(activity.window.decorView)?.let {
+                    it.text.toString() == text && it.isEditable() && it.width > 0 && it.height > 0
+                } == true
             } else InstrumentationRegistry.getInstrumentation().runOnMainSync {
-                found = externalActivity()?.let { findEditor(it.window.decorView)?.text.toString() == text } == true
+                found = externalActivity()?.let { findEditor(it.window.decorView) }?.let {
+                    it.text.toString() == text && it.isEditable() && it.width > 0 && it.height > 0
+                } == true
             }
             if (found) return
             Thread.sleep(50)

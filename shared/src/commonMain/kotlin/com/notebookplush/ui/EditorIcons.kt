@@ -5,6 +5,9 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.unit.dp
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 
 internal object EditorIcons {
     private fun icon(name: String, draw: androidx.compose.ui.graphics.vector.PathBuilder.() -> Unit): ImageVector =
@@ -12,6 +15,20 @@ internal object EditorIcons {
             path(fill = null, stroke = SolidColor(Color.White), strokeLineWidth = 1.8f, pathBuilder = draw)
         }.build()
     val Close = icon("Close") { moveTo(6f, 6f); lineTo(18f, 18f); moveTo(18f, 6f); lineTo(6f, 18f) }
+    val Settings = icon("Settings") {
+        repeat(32) { step ->
+            val angle = step * PI / 16
+            val radius = if (step % 4 == 1 || step % 4 == 2) 10.2 else 8.0
+            val x = (12 + radius * cos(angle)).toFloat()
+            val y = (12 + radius * sin(angle)).toFloat()
+            if (step == 0) moveTo(x, y) else lineTo(x, y)
+        }
+        close()
+        moveTo(15f, 12f)
+        arcToRelative(3f, 3f, 0f, false, true, -6f, 0f)
+        arcToRelative(3f, 3f, 0f, false, true, 6f, 0f)
+        close()
+    }
     val Open = icon("Open file") {
         moveTo(3f, 20f); lineTo(3f, 5f); lineTo(10f, 5f); lineTo(12f, 8f); lineTo(21f, 8f)
         lineTo(21f, 11f); moveTo(3f, 20f); lineTo(7f, 11f); lineTo(23f, 11f); lineTo(19f, 20f); close()
