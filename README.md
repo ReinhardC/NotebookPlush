@@ -1,5 +1,7 @@
 # NotebookPlush
 
+<img src="ChatGPT%20Image%20Sep%2030,%202026,%2012_17_43%20AM.png" alt="drawing" width="300"/>
+
 A cozy Android text editor for JSON, built with Kotlin and Compose Multiplatform.
 
 [GitHub repository](https://github.com/ReinhardC/NotebookPlush) · [Download releases](https://github.com/ReinhardC/NotebookPlush/releases) · [Build and release runs](https://github.com/ReinhardC/NotebookPlush/actions)
