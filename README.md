@@ -98,3 +98,5 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\deploy-release.ps1 -Mo
 Only Android is enabled for now. The UI lives in a Kotlin Multiplatform module so additional targets can be added later.
 
 Uses the separate Android application and shared library structure described in the [Android KMP guide](https://developer.android.com/kotlin/multiplatform/plugin).
+
+<img src="Plush.png" alt="screenshot"/>
